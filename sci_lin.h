@@ -8,9 +8,11 @@
 
 #define MY_SYSCALL_NO 			0
 
+#define LOG_LEVEL KERN_ALERT
+
 #ifdef __KERNEL__
 
-asmlinkage long my_syscall(int cmd, int syscall, int pid);
+asmlinkage long my_syscall(int cmd, long syscall, long pid);
 
 #define log_syscall(pid, syscall, arg1, arg2, arg3, arg4, arg5, arg6, ret) \
 	printk(KERN_DEBUG"[%x]%lx(%lx,%lx,%lx,%lx,%lx,%lx)=%lx\n", pid, \
@@ -19,5 +21,10 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid);
 		ret \
 	);
 #endif
+
+struct syscall_params 
+{
+	long ebx, ecx, edx, esi, edi, ebp, eax;
+};
 
 #endif 
