@@ -1,4 +1,10 @@
 /tema1*
+.tmp*
+*.ko
+*.symvers
+*.order
+*.mod.c
+
 # Compiled Object files
 *.slo
 *.lo
