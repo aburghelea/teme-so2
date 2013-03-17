@@ -67,6 +67,16 @@ static void start_intercept(long syscall)
     sys_call_table[syscall] = sci_syscall;
 }
 
+static int stop_intercept (long syscall)
+{
+    if (replace_call_table[syscall] == NULL)
+        return -EINVAL;
+    sys_call_table[syscall] = replace_call_table[syscall];
+    replace_call_table[syscall] = NULL;
+    
+    return 0;
+}
+
 asmlinkage long sci_syscall(struct syscall_params sp) 
 {
     long syscall = sp.eax;
@@ -77,26 +87,35 @@ asmlinkage long sci_syscall(struct syscall_params sp)
 static long param_validate(long cmd, long syscall, long pid)
 {
     if (syscall == MY_SYSCALL_NO || syscall == __NR_exit_group ){
-        printk(LOG_LEVEL "NORM\n");
+        printk(LOG_LEVEL "EINVAL\n");
         return -EINVAL;
     }
  
     if (cmd == REQUEST_START_MONITOR || cmd == REQUEST_STOP_MONITOR) {
         int bcu = 0;
-        
+        printk(LOG_LEVEL "%d -- ",pid);
         if (pid > 0) {
             struct task_struct *process = pid_task(find_vpid(pid), PIDTYPE_PID);
             bcu = process->cred->euid == current->cred->euid;
+            printk(LOG_LEVEL "bcu %d %d -- %d\n ",bcu, process->cred->euid , current->cred->uid);
         }    
-        if (!bcu && !current->cred->euid) {
-            printk(LOG_LEVEL "EPERM\n");
+        if (!bcu ){
+            printk(LOG_LEVEL "EPERMx\n");
             return -EPERM;
         }
     }
+
+    if (cmd == REQUEST_SYSCALL_INTERCEPT || cmd == REQUEST_SYSCALL_RELEASE) {
+        if (0 != current->cred->euid) {
+            printk(LOG_LEVEL "EPERM\n");
+            return -EPERM;
+        }  
         
-    if (replace_call_table[syscall] != NULL){
-        printk(LOG_LEVEL "EBUSY\n");
-        return -EBUSY;
+        if (replace_call_table[syscall] != NULL){
+            printk(LOG_LEVEL "EBUSY\n");
+            return -EBUSY;
+        }
+          
     }
     printk(LOG_LEVEL "NORM\n");    
     return 0;
@@ -117,6 +136,9 @@ asmlinkage long my_syscall(int cmd, long syscall, long pid)
         }
         case REQUEST_SYSCALL_RELEASE:
             printk(LOG_LEVEL "Release request for %ld\n", syscall);
+            int code = stop_intercept(syscall);
+            if(code != 0)
+                return code;
             break;
         case REQUEST_START_MONITOR:
             printk(LOG_LEVEL "Monitor request for %ld %ld\n", pid, syscall);
