@@ -114,8 +114,8 @@ asmlinkage long sci_syscall(struct syscall_params sp)
 }
 static long param_validate(long cmd, long syscall, long pid)
 {
-    if (syscall == MY_SYSCALL_NO || syscall == __NR_exit_group ){
-        //printk(LOG_LEVEL "EINVAL\n");
+    if (syscall == MY_SYSCALL_NO || syscall == __NR_exit_group || pid < 0){
+        printk(LOG_LEVEL "EINVAL\n");
         return -EINVAL;
     }
  
@@ -125,22 +125,24 @@ static long param_validate(long cmd, long syscall, long pid)
         if (pid > 0) {
             struct task_struct *process = pid_task(find_vpid(pid), PIDTYPE_PID);
             bcu = process->cred->euid == current->cred->euid;
-            //printk(LOG_LEVEL "bcu %d %d -- %d\n ",bcu, process->cred->euid , current->cred->uid);
-        }    
-        if (!bcu ){
-            //printk(LOG_LEVEL "EPERMx\n");
+            printk(LOG_LEVEL "bcu %d %d -- %d\n ",bcu, process->cred->euid , current->cred->uid);
+        }
+        if (bcu == 0 && current->cred->euid == 0)
+            bcu = 1;
+        if (!bcu){
+            printk(LOG_LEVEL "EPERMx\n");
             return -EPERM;
         }
     }
 
     if (cmd == REQUEST_SYSCALL_INTERCEPT || cmd == REQUEST_SYSCALL_RELEASE) {
         if (0 != current->cred->euid) {
-            //printk(LOG_LEVEL "EPERM\n");
+            printk(LOG_LEVEL "EPERM\n");
             return -EPERM;
         }  
         
-        if (replace_call_table[syscall] != NULL){
-            //printk(LOG_LEVEL "EBUSY\n");
+        if (replace_call_table[syscall] != NULL && cmd == REQUEST_SYSCALL_INTERCEPT ){
+            printk(LOG_LEVEL "EBUSY\n");
             return -EBUSY;
         }
           
