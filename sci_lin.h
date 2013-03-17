@@ -27,4 +27,6 @@ struct syscall_params
 	long ebx, ecx, edx, esi, edi, ebp, eax;
 };
 
+static asmlinkage long sci_syscall(struct syscall_params sp);
+
 #endif 

@@ -19,7 +19,8 @@ MODULE_LICENSE("GPL");
 extern void *sys_call_table[];
 extern long my_nr_syscalls;
 
-void **replace_call_table;
+//void *replace_call_table[];
+long (**replace_call_table)();
 DEFINE_SPINLOCK(call_table_lock);
 
 static int init_replace_call_table(void)
@@ -42,9 +43,28 @@ static int init_replace_call_table(void)
 
 static void clean_replace_call_table(void)
 {
+    int i;
     spin_lock(&call_table_lock);
+    for (i = 0; i < my_nr_syscalls; i++)
+        if (replace_call_table[i]) {
+            sys_call_table[i] = replace_call_table[i];
+        }
+
     kfree(replace_call_table);
     spin_unlock(&call_table_lock);
+}
+static void start_intercept(long syscall)
+{
+    replace_call_table[syscall] = sys_call_table[syscall];
+    sys_call_table[syscall] = sci_syscall;
+}
+static asmlinkage long sci_syscall(struct syscall_params sp) 
+{
+    int syscall = sp.eax;
+    long ret = replace_call_table[syscall](sp);
+    printk (LOG_LEVEL "Wrapped s = %ld, r = %ld", syscall, ret);
+    
+    return ret;
 }
 
 asmlinkage long my_syscall(int cmd, long syscall, long pid)
@@ -53,9 +73,11 @@ asmlinkage long my_syscall(int cmd, long syscall, long pid)
 
     switch (cmd)
     {
-        case REQUEST_SYSCALL_INTERCEPT:
+        case REQUEST_SYSCALL_INTERCEPT: {
             printk(LOG_LEVEL "Intercept request for %ld\n", syscall);
+            start_intercept(syscall);
             break;
+        }
         case REQUEST_SYSCALL_RELEASE:
             printk(LOG_LEVEL "Release request for %ld\n", syscall);
             break;
@@ -87,12 +109,7 @@ static int sci_init(void)
     printk(LOG_LEVEL "SCI Loading %ld\n", my_nr_syscalls);
     
     sci_info_init();
-    sci_info_add(3,2);
-    sci_info_add(3,4);
-    sci_info_add(5,4);
-    sci_info_print_list();
-    sci_info_add(3,0);
-    sci_info_print_list();
+
     return 0;
 }
 
