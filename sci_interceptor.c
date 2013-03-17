@@ -9,6 +9,8 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/sched.h>
+
 #include "sci_lin.h"
 #include "sci_list.h"
 #include <asm/unistd.h>
@@ -77,6 +79,8 @@ static long param_validate(long syscall, long pid)
 {
     if (syscall == MY_SYSCALL_NO || syscall == __NR_exit_group )
         return -EINVAL;
+    if (current->cred->euid != 0)
+        return -EPERM;
         
     if (replace_call_table[syscall] != NULL)
         return -EBUSY;
