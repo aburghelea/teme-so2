@@ -17,46 +17,26 @@ MODULE_DESCRIPTION("System call interceptor");
 MODULE_AUTHOR("Alexandru George Burghelea");
 MODULE_LICENSE("GPL");
 
-
-static long (*f)(struct syscall_params);
-static long (*g)(struct syscall_params);
-
 extern void *sys_call_table[];
 extern long my_nr_syscalls;
 
-asmlinkage long interceptor (struct syscall_params sp)
+asmlinkage long my_syscall(int cmd, long syscall, long pid)
 {
-	int syscall = sp.eax;
-	int r = f(sp);
-	printk (LOG_LEVEL "Open intercept %d %d\n", syscall, r);
-
-	return r;
-}
-
-asmlinkage long interceptor2 (struct syscall_params sp)
-{
-	int syscall = sp.eax;
-	int r = g(sp);
-	printk (LOG_LEVEL "Close intercept %d %d\n", syscall, r);
-
-	return r;
+	printk(LOG_LEVEL "THIS IS ME TRING TO INTERCEPT THE CALLS");
 }
 
 static int sci_init(void)
 {
-	printk(LOG_LEVEL "SCI Loading\n");
-	f = sys_call_table[__NR_open];
-	g = sys_call_table[__NR_mkdir];
-	sys_call_table[__NR_open] = interceptor;
-	sys_call_table[__NR_mkdir] = interceptor2;
+	printk(LOG_LEVEL "SCI Loading %ld\n", my_nr_syscalls);
+	sys_call_table[MY_SYSCALL_NO] = my_syscall;
 	return 0;
 }
+
+
 
 static void sci_exit(void)
 {
 	printk(LOG_LEVEL "SCI Unloading\n");
-	sys_call_table[__NR_open] = f;
-	sys_call_table[__NR_mkdir] = g;
 }
 
 module_init(sci_init);
