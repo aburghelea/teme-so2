@@ -5,5 +5,5 @@ cd  tema1-checker-lin
 make -f Makefile.checker clean
 make -f Makefile.checker
 cp ../sci.ko .
+./test
 cd ../
-./tema1-checker-lin/test
