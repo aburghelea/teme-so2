@@ -9,6 +9,8 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/list.h>
+#include <linux/sched.h>
 #include "sci_lin.h"
 #include "sci_list.h"
 
@@ -60,6 +62,7 @@ asmlinkage long my_syscall(int cmd, long syscall, long pid)
             printk(LOG_LEVEL "Release request for %ld\n", syscall);
             break;
         case REQUEST_START_MONITOR:
+            sci_
             printk(LOG_LEVEL "Monitor request for %ld %ld\n", pid, syscall);
             break;
         case REQUEST_STOP_MONITOR:
@@ -78,12 +81,12 @@ static int sci_init(void)
     int err;
     printk(LOG_LEVEL "SCI Loading %ld\n", my_nr_syscalls);
     sys_call_table[MY_SYSCALL_NO] = my_syscall;
-
     err = init_replace_call_table();
+
     if (!err)
         return err;
         
-    sci_info_init();
+    sci_info_add();
 
     return 0;
 }
