@@ -7,6 +7,7 @@
 #include "sci_list.h"
 
 static struct list_head head;
+
 void sci_info_init(void){
     INIT_LIST_HEAD(&head);
 }
@@ -30,7 +31,7 @@ void  sci_info_add(long syscall, long pid)
     si = sci_info_alloc(syscall, pid);
     if (pid == 0)
         sci_info_remove_for_syscall(syscall);
-        
+    printk(KERN_ALERT "ADDING ELEMETN\n");
     list_add(&si->list, &head);
     
 }
@@ -41,7 +42,7 @@ void sci_info_remove_for_syscall(long syscall)
 
 	list_for_each_safe(p, q, &head) {
 		si = list_entry(p, struct sci_info, list);
-        if (si->syscall == syscall || syscall == -1) {
+        if (syscall == -1 || si->syscall == syscall) {
             list_del(p);
             kfree(si);
         }

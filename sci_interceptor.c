@@ -76,15 +76,23 @@ asmlinkage long my_syscall(int cmd, long syscall, long pid)
 static int sci_init(void)
 {
     int err;
-    printk(LOG_LEVEL "SCI Loading %ld\n", my_nr_syscalls);
+    
     sys_call_table[MY_SYSCALL_NO] = my_syscall;
 
     err = init_replace_call_table();
-    if (!err)
+    if (err) {
         return err;
-        
-    sci_info_init();
+    }
 
+    printk(LOG_LEVEL "SCI Loading %ld\n", my_nr_syscalls);
+    
+    sci_info_init();
+    sci_info_add(3,2);
+    sci_info_add(3,4);
+    sci_info_add(5,4);
+    sci_info_print_list();
+    sci_info_add(3,0);
+    sci_info_print_list();
     return 0;
 }
 
@@ -93,6 +101,7 @@ static void sci_exit(void)
     printk(LOG_LEVEL "SCI Unloading\n");
     clean_replace_call_table();
     sci_info_purge_list();
+    
 }
 
 module_init(sci_init);
