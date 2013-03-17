@@ -9,8 +9,8 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/list.h>
 #include <linux/sched.h>
-
 #include "sci_lin.h"
 #include "sci_list.h"
 #include <asm/unistd.h>
@@ -77,28 +77,28 @@ asmlinkage long sci_syscall(struct syscall_params sp)
 static long param_validate(long cmd, long syscall, long pid)
 {
     if (syscall == MY_SYSCALL_NO || syscall == __NR_exit_group ){
-        prinkt(LOG_LEVEL "NORM\n");
+        printk(LOG_LEVEL "NORM\n");
         return -EINVAL;
     }
  
-    if (cmd == REQUEST_START_MONITOR || cmd = REQUEST_STOP_MONITOR) {
+    if (cmd == REQUEST_START_MONITOR || cmd == REQUEST_STOP_MONITOR) {
         int bcu = 0;
         
         if (pid > 0) {
-            task_struct *process = pid_task(find_vpid(pid), PIDTYPE_PID);
+            struct task_struct *process = pid_task(find_vpid(pid), PIDTYPE_PID);
             bcu = process->cred->euid == current->cred->euid;
         }    
         if (!bcu && !current->cred->euid) {
-            prinkt(LOG_LEVEL "EPERM\n");
+            printk(LOG_LEVEL "EPERM\n");
             return -EPERM;
         }
     }
         
     if (replace_call_table[syscall] != NULL){
-        prinkt(LOG_LEVEL "EBUSY\n");
+        printk(LOG_LEVEL "EBUSY\n");
         return -EBUSY;
     }
-    prinkt(LOG_LEVEL "NORM\n");    
+    printk(LOG_LEVEL "NORM\n");    
     return 0;
 }
 asmlinkage long my_syscall(int cmd, long syscall, long pid)
