@@ -27,12 +27,17 @@ struct sci_info *sci_info_alloc(long syscall, long pid) {
 void  sci_info_add(long syscall, long pid)
 {
     struct sci_info *si;
-    
+    if (sci_info_contains_pid_syscall(pid,syscall)) {
+        return;
+    }
     si = sci_info_alloc(syscall, pid);
     if (pid == 0)
         sci_info_remove_for_syscall(syscall);
     printk(KERN_ALERT "ADDING ELEMETN\n");
+    
     list_add(&si->list, &head);
+    
+    sci_info_print_list();
     
 }
 void sci_info_remove_for_syscall(long syscall)
@@ -63,7 +68,7 @@ void sci_info_remove_for_pid(long pid)
 	}
 }
 
-int sci_info_remove_for_pid_syscall(long pid, long syscall)
+void sci_info_remove_for_pid_syscall(long pid, long syscall)
 {
     struct list_head *p, *q;
 	struct sci_info *si;
@@ -73,7 +78,6 @@ int sci_info_remove_for_pid_syscall(long pid, long syscall)
        if ((si->pid == pid || si->pid == 0) && si->syscall == syscall){
             list_del(p);
             kfree(si);
-
         }
 	}
 }
@@ -85,11 +89,11 @@ void sci_info_purge_list(void)
 
 int sci_info_contains_pid_syscall(long pid, long syscall){
 	struct list_head *p;
-	struct sci_info *ti;
+	struct sci_info *si;
 
 	list_for_each(p, &head) {
-		ti = list_entry(p, struct sci_info, list);
-		if ((ti->pid == pid || ti->pid == 0) && ti->syscall == syscall)
+		si = list_entry(p, struct sci_info, list);
+		if ((si->pid == pid || si->pid == 0) && si->syscall == syscall)
 			return 1;
 	}
 
