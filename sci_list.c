@@ -63,6 +63,21 @@ void sci_info_remove_for_pid(long pid)
 	}
 }
 
+int sci_info_remove_for_pid_syscall(long pid, long syscall)
+{
+    struct list_head *p, *q;
+	struct sci_info *si;
+
+	list_for_each_safe(p, q, &head) {
+		si = list_entry(p, struct sci_info, list);
+       if ((si->pid == pid || si->pid == 0) && si->syscall == syscall){
+            list_del(p);
+            kfree(si);
+
+        }
+	}
+}
+
 void sci_info_purge_list(void)
 {
 	sci_info_remove_for_syscall(-1);

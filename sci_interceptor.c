@@ -80,6 +80,19 @@ static int stop_intercept (long syscall)
 
 static int start_monitor (long syscall, long pid)
 {
+    if (sci_info_contains_pid_syscall(pid,syscall))
+        return -EBUSY;
+        
+    sci_info_add(syscall, pid);
+    
+    return 0;
+}
+
+static int stop_monitor (long syscall, long pid)
+{
+    if (!sci_info_contains_pid_syscall(pid,syscall))
+        return -EINVAL;
+        
     sci_info_add(syscall, pid);
     
     return 0;
@@ -151,12 +164,18 @@ asmlinkage long my_syscall(int cmd, long syscall, long pid)
                 return code;
             break;
          }
-        case REQUEST_START_MONITOR:
-            printk(LOG_LEVEL "Monitor request for %ld %ld\n", pid, syscall);
+        case REQUEST_START_MONITOR: {
+            int code = start_monitor(syscall, pid);
+            if(code != 0)
+                return code;
             break;
-        case REQUEST_STOP_MONITOR:
-            printk(LOG_LEVEL "Stop request for %ld %ld\n", pid, syscall);
+        }
+        case REQUEST_STOP_MONITOR:{
+            int code = stop_monitor(syscall, pid);
+            if(code != 0)
+                return code;
             break;
+        }
         default:
             printk(LOG_LEVEL ">>>> PANICA <<<<\n");
 
