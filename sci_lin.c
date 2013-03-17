@@ -35,7 +35,7 @@ asmlinkage long interceptor (struct syscall_params sp)
 
 asmlinkage long interceptor2 (struct syscall_params sp)
 {
-	int syscakk = sp.eax;
+	int syscall = sp.eax;
 	int r = g(sp);
 	printk (LOG_LEVEL "Close intercept %d %d\n", syscall, r);
 
@@ -46,9 +46,9 @@ static int sci_init(void)
 {
 	printk(LOG_LEVEL "SCI Loading\n");
 	f = sys_call_table[__NR_open];
-	g = sys_call_table[__NR_close];
-	sys_call_table[__NR_close] = interceptor2;
+	g = sys_call_table[__NR_mkdir];
 	sys_call_table[__NR_open] = interceptor;
+	sys_call_table[__NR_mkdir] = interceptor2;
 	return 0;
 }
 
@@ -56,7 +56,7 @@ static void sci_exit(void)
 {
 	printk(LOG_LEVEL "SCI Unloading\n");
 	sys_call_table[__NR_open] = f;
-	sys_call_table[__NR_close] = g;
+	sys_call_table[__NR_mkdir] = g;
 }
 
 module_init(sci_init);
