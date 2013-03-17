@@ -23,6 +23,27 @@ extern long my_nr_syscalls;
 asmlinkage long my_syscall(int cmd, long syscall, long pid)
 {
 	printk(LOG_LEVEL "THIS IS ME TRING TO INTERCEPT THE CALLS");
+
+	switch (cmd)
+	{
+		case REQUEST_SYSCALL_INTERCEPT:
+			printk(LOG_LEVEL "Intercept request for %ld\n", syscall);
+			break;
+		case REQUEST_SYSCALL_RELEASE:
+			printk(LOG_LEVEl "Release request for %ld\n", syscall);
+			break;
+		case REQUEST_START_MONITOR:
+			printk(LOG_LEVEL "Monitor request for %ld %ld\n", pid, syscall);
+			break
+		case REQUEST_STOP_MONITOR:
+			printk(LOG_LEVEL "Stop request for %ld %ld\n", pid, syscall);
+			break;
+		default:
+			printk(LOG_LEVEL ">>>> PANICA <<<<\n");
+
+	}
+
+	return 0;
 }
 
 static int sci_init(void)
