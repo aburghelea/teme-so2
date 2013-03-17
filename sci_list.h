@@ -10,11 +10,9 @@ struct sci_info {
 
 void sci_info_init(void);
 
-struct sci_info *sci_info_alloc(long syscall, long pid);
+//struct sci_info *sci_info_alloc(long syscall, long pid); 
 
 void  sci_info_add(long syscall, long pid);
-
-void sci_info_remove_for_syscall(long syscall);
 
 void sci_info_remove_for_pid(long pid);
 
