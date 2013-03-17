@@ -21,6 +21,7 @@ extern void *sys_call_table[];
 extern long my_nr_syscalls;
 
 void **replace_call_table;
+DEFINE_SPINLOCK(call_table_lock);
 
 asmlinkage long my_syscall(int cmd, long syscall, long pid)
 {
@@ -51,16 +52,25 @@ asmlinkage long my_syscall(int cmd, long syscall, long pid)
 static int init_replace_call_table(void)
 {
     int i;
-    
+    spin_lock(&call_table_lock);
     replace_call_table = kmalloc( my_nr_syscalls * sizeof(void *), GFP_KERNEL);
-    if (!replace_call_table)
+    if (!replace_call_table) {
+        spin_unlock(&call_table_lock);
         return -ENOMEM;
+    }
 
     for (i = 0 ; i < my_nr_syscalls; i++)
         replace_call_table[i] = NULL;
 
+    spin_unlock(&call_table_lock);
     return 0;   
 
+}
+static void clean_replace_call_table(void)
+{
+    spin_lock(&call_table_lock);
+    kfree(replace_call_table);
+    spin_unlock(&call_table_lock);
 }
 
 static int sci_init(void)
@@ -79,7 +89,7 @@ static int sci_init(void)
 static void sci_exit(void)
 {
     printk(LOG_LEVEL "SCI Unloading\n");
-    kfree(replace_call_table);
+    clean_replace_call_table();
 }
 
 module_init(sci_init);
