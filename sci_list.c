@@ -33,11 +33,11 @@ void  sci_info_add(long syscall, long pid)
     si = sci_info_alloc(syscall, pid);
     if (pid == 0)
         sci_info_remove_for_syscall(syscall);
-    printk(KERN_ALERT "ADDING ELEMETN\n");
+  //  printk(KERN_ALERT "ADDING ELEMETN\n");
     
     list_add(&si->list, &head);
     
-    sci_info_print_list();
+//sci_info_print_list();
     
 }
 void sci_info_remove_for_syscall(long syscall)

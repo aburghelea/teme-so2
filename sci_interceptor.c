@@ -90,15 +90,15 @@ static int start_monitor (long syscall, long pid)
 
 static int stop_monitor (long syscall, long pid)
 {
-    printk(LOG_LEVEL "SM-- %ld -- %ld\n",pid, syscall);
-    sci_info_print_list();
+   // printk(LOG_LEVEL "SM-- %ld -- %ld\n",pid, syscall);
+   // sci_info_print_list();
     if (!sci_info_contains_pid_syscall(pid,syscall)){
-        printk(LOG_LEVEL "%ld -- %ld\n",syscall, pid);
+      //  printk(LOG_LEVEL "%ld -- %ld\n",syscall, pid);
         return -EINVAL;
     }
         
     sci_info_remove_for_pid_syscall(pid, syscall);
-    sci_info_print_list();
+  //  sci_info_print_list();
     
     return 0;
 }
@@ -115,7 +115,7 @@ asmlinkage long sci_syscall(struct syscall_params sp)
 static long param_validate(long cmd, long syscall, long pid)
 {
     if (syscall == MY_SYSCALL_NO || syscall == __NR_exit_group || pid < 0){
-        printk(LOG_LEVEL "EINVAL\n");
+       // printk(LOG_LEVEL "EINVAL\n");
         return -EINVAL;
     }
  
@@ -124,25 +124,30 @@ static long param_validate(long cmd, long syscall, long pid)
         //printk(LOG_LEVEL "%ld -- ",pid);
         if (pid > 0) {
             struct task_struct *process = pid_task(find_vpid(pid), PIDTYPE_PID);
+            if (process == NULL) {
+                sci_info_remove_for_pid(pid);
+            //    printk(LOG_LEVEL "---------------------------->\n");
+                return -EINVAL;
+            }
             bcu = process->cred->euid == current->cred->euid;
-            printk(LOG_LEVEL "bcu %d %d -- %d\n ",bcu, process->cred->euid , current->cred->uid);
+           // printk(LOG_LEVEL "bcu %d %d -- %d\n ",bcu, process->cred->euid , current->cred->uid);
         }
         if (bcu == 0 && current->cred->euid == 0)
             bcu = 1;
         if (!bcu){
-            printk(LOG_LEVEL "EPERMx\n");
+         //   printk(LOG_LEVEL "EPERMx\n");
             return -EPERM;
         }
     }
 
     if (cmd == REQUEST_SYSCALL_INTERCEPT || cmd == REQUEST_SYSCALL_RELEASE) {
         if (0 != current->cred->euid) {
-            printk(LOG_LEVEL "EPERM\n");
+      //      printk(LOG_LEVEL "EPERM\n");
             return -EPERM;
         }  
         
         if (replace_call_table[syscall] != NULL && cmd == REQUEST_SYSCALL_INTERCEPT ){
-            printk(LOG_LEVEL "EBUSY\n");
+     //       printk(LOG_LEVEL "EBUSY\n");
             return -EBUSY;
         }
           
