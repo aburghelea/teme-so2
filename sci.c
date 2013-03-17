@@ -12,6 +12,7 @@
 #include <linux/list.h>
 #include <linux/sched.h>
 #include "sci_lin.h"
+#include "sci_list.h"
 
 MODULE_DESCRIPTION("System call interceptor");
 MODULE_AUTHOR("Alexandru George Burghelea");
@@ -22,29 +23,6 @@ extern long my_nr_syscalls;
 
 void **replace_call_table;
 DEFINE_SPINLOCK(call_table_lock);
-
-struct sci_info {
-    long pid;
-    long syscall;
-
-    struct list_head list;
-}
-
-static struct list_head head;
-
-static struct sci_info *sci_info_alloc(long syscall, long pid) {
-    struct sci_info *si;
-
-
-
-    si = kmalloc(sizeof(*si), GFP_KERNEL);
-    if (si == NULL)
-        return NULL:
-    si->syscall = syscall;
-    si->pid = pid;
-
-    return si;
-}
 
 static int init_replace_call_table(void)
 {
