@@ -30,11 +30,11 @@ asmlinkage long my_syscall(int cmd, long syscall, long pid)
 			printk(LOG_LEVEL "Intercept request for %ld\n", syscall);
 			break;
 		case REQUEST_SYSCALL_RELEASE:
-			printk(LOG_LEVEl "Release request for %ld\n", syscall);
+			printk(LOG_LEVEL "Release request for %ld\n", syscall);
 			break;
 		case REQUEST_START_MONITOR:
 			printk(LOG_LEVEL "Monitor request for %ld %ld\n", pid, syscall);
-			break
+			break;
 		case REQUEST_STOP_MONITOR:
 			printk(LOG_LEVEL "Stop request for %ld %ld\n", pid, syscall);
 			break;
