@@ -3,7 +3,6 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/list.h>
-#include <linux/sched.h>
 
 #include "sci_list.h"
 
