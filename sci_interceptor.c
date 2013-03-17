@@ -50,10 +50,10 @@ static void clean_replace_call_table(void)
 {
     int i;
     spin_lock(&call_table_lock);
-    for (i = 0; i < my_nr_syscalls; i++)
-        if (replace_call_table[i]) {
+    for (i = 0; i < my_nr_syscalls; i++) {
+        if (replace_call_table[i] != NULL) 
             sys_call_table[i] = replace_call_table[i];
-        }
+    }
 
     kfree(replace_call_table);
     spin_unlock(&call_table_lock);
@@ -69,14 +69,17 @@ asmlinkage long sci_syscall(struct syscall_params sp)
 {
     long syscall = sp.eax;
     long ret = replace_call_table[syscall](sp); 
-    printk (LOG_LEVEL "Wrapped s = %ld, r = %ld", syscall, ret); 
+    printk (LOG_LEVEL "Wrapped s = %ld, r = %ld\n", syscall, ret); 
     
     return ret;
 }
 static long param_validate(long syscall, long pid)
 {
-    if (syscall == MY_SYSCALL_NO || __NR_exit_group )
+    if (syscall == MY_SYSCALL_NO || syscall == __NR_exit_group )
         return -EINVAL;
+        
+    if (replace_call_table[syscall] != NULL)
+        return -EBUSY;
         
     return 0;
 }
@@ -122,8 +125,6 @@ static int sci_init(void)
         return err;
     }
 
-    printk(LOG_LEVEL "SCI Loading %ld\n", my_nr_syscalls);
-    
     sci_info_init();
 
     return 0;
@@ -131,9 +132,9 @@ static int sci_init(void)
 
 static void sci_exit(void)
 {
-    printk(LOG_LEVEL "SCI Unloading\n");
     clean_replace_call_table();
     sci_info_purge_list();
+    
 }
 
 module_init(sci_init);
