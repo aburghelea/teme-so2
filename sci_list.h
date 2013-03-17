@@ -16,6 +16,10 @@ void  sci_info_add(long syscall, long pid);
 
 void sci_info_remove_for_syscall(long syscall);
 
+void sci_info_remove_for_pid(long pid);
+
+int sci_info_contains_pid_syscall(long pid, long syscall);
+
 void sci_info_purge_list(void);
 
 void sci_info_print_list(void);

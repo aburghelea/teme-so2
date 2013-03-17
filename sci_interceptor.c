@@ -23,9 +23,6 @@ extern void *sys_call_table[];
 extern long my_nr_syscalls;
 
 typedef long (*syscall)(struct syscall_params);
-//void *replace_call_table[];
-//long (**replace_call_table)();
-
 syscall *replace_call_table;
 
 DEFINE_SPINLOCK(call_table_lock);
@@ -45,7 +42,6 @@ static int init_replace_call_table(void)
 
     spin_unlock(&call_table_lock);
     return 0;   
-
 }
 
 static void clean_replace_call_table(void)
@@ -60,11 +56,16 @@ static void clean_replace_call_table(void)
     kfree(replace_call_table);
     spin_unlock(&call_table_lock);
 }
-static void start_intercept(long syscall)
+static int start_intercept(long syscall)
 {
+    if (replace_call_table[syscall] != NULL)
+        return -EBUSY;
+        
     printk(LOG_LEVEL "Starting Intercept for %ld\n", syscall);
     replace_call_table[syscall] = sys_call_table[syscall];
     sys_call_table[syscall] = sci_syscall;
+    
+    return 0;
 }
 
 static int stop_intercept (long syscall)
@@ -77,11 +78,20 @@ static int stop_intercept (long syscall)
     return 0;
 }
 
+static int start_monitor (long syscall, long pid)
+{
+    sci_info_add(syscall, pid);
+    
+    return 0;
+}
 asmlinkage long sci_syscall(struct syscall_params sp) 
 {
     long syscall = sp.eax;
     long ret = replace_call_table[syscall](sp); 
-    
+    if (sci_info_contains_pid_syscall(current->pid, syscall)) {
+        log_syscall(current->pid, syscall,sp.ebx, sp.ecx, sp.edx,sp.esi, sp.edi, sp.ebp,ret);
+        printk(LOG_LEVEL "DADADADADA\n");
+    }
     return ret;
 }
 static long param_validate(long cmd, long syscall, long pid)
@@ -93,7 +103,7 @@ static long param_validate(long cmd, long syscall, long pid)
  
     if (cmd == REQUEST_START_MONITOR || cmd == REQUEST_STOP_MONITOR) {
         int bcu = 0;
-        printk(LOG_LEVEL "%d -- ",pid);
+        printk(LOG_LEVEL "%ld -- ",pid);
         if (pid > 0) {
             struct task_struct *process = pid_task(find_vpid(pid), PIDTYPE_PID);
             bcu = process->cred->euid == current->cred->euid;
@@ -130,16 +140,17 @@ asmlinkage long my_syscall(int cmd, long syscall, long pid)
     switch (cmd)
     {
         case REQUEST_SYSCALL_INTERCEPT: {
-            printk(LOG_LEVEL "Intercept request for %ld\n", syscall);
-            start_intercept(syscall);
+            int code = start_intercept(syscall);
+            if(code != 0)
+                return code;
             break;
         }
-        case REQUEST_SYSCALL_RELEASE:
-            printk(LOG_LEVEL "Release request for %ld\n", syscall);
+        case REQUEST_SYSCALL_RELEASE: {
             int code = stop_intercept(syscall);
             if(code != 0)
                 return code;
             break;
+         }
         case REQUEST_START_MONITOR:
             printk(LOG_LEVEL "Monitor request for %ld %ld\n", pid, syscall);
             break;

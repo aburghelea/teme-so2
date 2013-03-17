@@ -49,11 +49,37 @@ void sci_info_remove_for_syscall(long syscall)
 	}
 }
 
+void sci_info_remove_for_pid(long pid)
+{
+    struct list_head *p, *q;
+	struct sci_info *si;
+
+	list_for_each_safe(p, q, &head) {
+		si = list_entry(p, struct sci_info, list);
+        if (si->pid == pid) {
+            list_del(p);
+            kfree(si);
+        }
+	}
+}
+
 void sci_info_purge_list(void)
 {
 	sci_info_remove_for_syscall(-1);
 }
 
+int sci_info_contains_pid_syscall(long pid, long syscall){
+	struct list_head *p;
+	struct sci_info *ti;
+
+	list_for_each(p, &head) {
+		ti = list_entry(p, struct sci_info, list);
+		if ((ti->pid == pid || ti->pid == 0) && ti->syscall == syscall)
+			return 1;
+	}
+
+	return 0;
+}
 void sci_info_print_list(void)
 {
 	struct list_head *p;
