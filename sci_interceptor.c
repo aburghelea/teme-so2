@@ -71,26 +71,40 @@ asmlinkage long sci_syscall(struct syscall_params sp)
 {
     long syscall = sp.eax;
     long ret = replace_call_table[syscall](sp); 
-    printk (LOG_LEVEL "Wrapped s = %ld, r = %ld\n", syscall, ret); 
     
     return ret;
 }
-static long param_validate(long syscall, long pid)
+static long param_validate(long cmd, long syscall, long pid)
 {
-    if (syscall == MY_SYSCALL_NO || syscall == __NR_exit_group )
+    if (syscall == MY_SYSCALL_NO || syscall == __NR_exit_group ){
+        prinkt(LOG_LEVEL "NORM\n");
         return -EINVAL;
-    if (current->cred->euid != 0)
-        return -EPERM;
+    }
+ 
+    if (cmd == REQUEST_START_MONITOR || cmd = REQUEST_STOP_MONITOR) {
+        int bcu = 0;
         
-    if (replace_call_table[syscall] != NULL)
+        if (pid > 0) {
+            task_struct *process = pid_task(find_vpid(pid), PIDTYPE_PID);
+            bcu = process->cred->euid == current->cred->euid;
+        }    
+        if (!bcu && !current->cred->euid) {
+            prinkt(LOG_LEVEL "EPERM\n");
+            return -EPERM;
+        }
+    }
+        
+    if (replace_call_table[syscall] != NULL){
+        prinkt(LOG_LEVEL "EBUSY\n");
         return -EBUSY;
-        
+    }
+    prinkt(LOG_LEVEL "NORM\n");    
     return 0;
 }
 asmlinkage long my_syscall(int cmd, long syscall, long pid)
 {
     //printk(LOG_LEVEL "THIS IS ME TRING TO INTERCEPT THE CALLS");
-    long invalid = param_validate(syscall, pid);
+    long invalid = param_validate(cmd, syscall, pid);
     if (invalid)
         return invalid;
         
