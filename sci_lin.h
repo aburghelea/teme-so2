@@ -22,8 +22,7 @@ asmlinkage long my_syscall(int cmd, long syscall, long pid);
     );
 #endif
 
-struct syscall_params
-{
+struct syscall_params {
     long ebx, ecx, edx, esi, edi, ebp, eax;
 };
 
