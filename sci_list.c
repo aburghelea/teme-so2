@@ -67,9 +67,12 @@ void sci_info_remove_for_pid_syscall(long pid, long syscall)
 
 int sci_info_contains_pid_syscall(long pid, long syscall)
 {
+    int status = 0;
+    
     spin_lock(&sci_info_lock);
-    int status = sci_info_contains_pid_syscall_unlocked(pid, syscall);
+    status = sci_info_contains_pid_syscall_unlocked(pid, syscall);
     spin_unlock(&sci_info_lock);
+    
     return status;
 }
 
