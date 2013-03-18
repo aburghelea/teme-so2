@@ -1,3 +1,10 @@
+/*
+ * User: Alexandru George Burghelea
+ * 342C5
+ * SO2 2013
+ * Tema 1
+ */
+
 #ifndef _SCI_LIST_H
 #define _SCI_LIST_H
 

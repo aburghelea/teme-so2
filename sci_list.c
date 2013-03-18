@@ -1,3 +1,10 @@
+/*
+ * User: Alexandru George Burghelea
+ * 342C5
+ * SO2 2013
+ * Tema 1
+ */
+
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
