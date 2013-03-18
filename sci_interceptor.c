@@ -24,6 +24,10 @@ syscall *replace_call_table;
 
 DEFINE_SPINLOCK(call_table_lock);
 
+/**
+ * init_replace_call_table() - Allocates and ints a duplicate for sys_call_table
+ * @return: 0 for success, -ENOMEM if the allocation failed
+ */
 static int init_replace_call_table(void)
 {
 	int i, ct_size;
@@ -42,6 +46,12 @@ static int init_replace_call_table(void)
 	return 0;
 }
 
+/**
+ * clean_replace_call_table() - Restores sys_call_table from the replacement
+ * 
+ * Restores sys_call_table from the replacement call table and frees the
+ * memorie allocated for replace_call_table;
+ */
 static void clean_replace_call_table(void)
 {
 	int i;
@@ -57,6 +67,12 @@ static void clean_replace_call_table(void)
 	spin_unlock(&call_table_lock);
 }
 
+/**
+ * start_intercept() - Intercepts a system call
+ * @syscall:	Desired syscall
+ * @return:		0 for succesfull registration, -EBUSY if syscall is already
+ *			already intercepted
+ */
 static long start_intercept(long syscall)
 {
 	if (replace_call_table[syscall] != NULL)
@@ -68,6 +84,12 @@ static long start_intercept(long syscall)
 	return 0;
 }
 
+/**
+ * stop_intercept() - Deintercepts a system call
+ * @syscall:	Desired syscall
+ * @return:		0 for succesfull release, -EINVAL if syscall was not already
+ * 			already intercepted
+ */
 static long stop_intercept(long syscall)
 {
 	if (replace_call_table[syscall] == NULL)
@@ -79,6 +101,13 @@ static long stop_intercept(long syscall)
 	return 0;
 }
 
+/**
+ * start_monitor() - Monitors the activity of a siscall for a process
+ * @syscall:	Desired syscall
+ * @pid:		Desired pid
+ * @return: 0 for succesfull start, -EBUSY if syscall is already 
+ * 			being monitored
+ */
 static long start_monitor(long syscall, long pid)
 {
 	if (sci_info_contains_pid_syscall(pid, syscall))
@@ -89,6 +118,13 @@ static long start_monitor(long syscall, long pid)
 	return 0;
 }
 
+/**
+ * start_monitor() - Unonitors the activity of a siscall for a process
+ * @syscall:	Desired syscall
+ * @pid:		Desired pid
+ * @return: 0 for succesfull stop, -EINVAL if syscall is not already 
+ * 			being monitored
+ */
 static long stop_monitor(long syscall, long pid)
 {
 	if (!sci_info_contains_pid_syscall(pid, syscall))
@@ -99,6 +135,14 @@ static long stop_monitor(long syscall, long pid)
 	return 0;
 }
 
+/**
+ * param_validate() - Validates the input parameters for the call
+ * @cmd: Desired comand
+ * @syscall:	Desired syscall
+ * @pid:		Desired pid
+ * @return: 0 for succesfull validate, one of the error codes for the 
+ * 			situatiaon (see requirements for details) 
+ */
 static long param_validate(long cmd, long syscall, long pid)
 {
 	int is_itct, ai;
@@ -137,7 +181,14 @@ static long param_validate(long cmd, long syscall, long pid)
 	}
 	return 0;
 }
-
+/**
+ * my_syscall() - Interceptor syscall
+ * @cmd: Desired comand
+ * @syscall:	Desired syscall
+ * @pid:		Desired pid
+ * @return: 0 for succesfull run, one of the error codes from 
+ *			param_validate(see requirements for details) 
+ */
 asmlinkage long my_syscall(int cmd, long syscall, long pid)
 {
 	long code = 0;
@@ -170,6 +221,11 @@ asmlinkage long my_syscall(int cmd, long syscall, long pid)
 	return code;
 }
 
+/**
+ * my_syscall() - Syscall wrapper
+ * @sp:		Registers values
+ * @return: syscall result
+ */
 asmlinkage long sci_syscall(struct syscall_params sp)
 {
 	long syscall = sp.eax;
@@ -179,7 +235,9 @@ asmlinkage long sci_syscall(struct syscall_params sp)
 					sp.edx, sp.esi, sp.edi, sp.ebp, ret);
 	return ret;
 }
-
+/**
+ * sci_init() - Module init
+ */
 static int sci_init(void)
 {
 	int err;
@@ -195,6 +253,9 @@ static int sci_init(void)
 	return 0;
 }
 
+/**
+ * sci_init() - Module exit
+ */
 static void sci_exit(void)
 {
 	clean_replace_call_table();
