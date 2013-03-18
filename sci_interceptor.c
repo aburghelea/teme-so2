@@ -26,15 +26,9 @@ DEFINE_SPINLOCK(call_table_lock);
 
 static int init_replace_call_table(void)
 {
-<<<<<<< HEAD
 	int i, ct_size;
 	spin_lock(&call_table_lock);
 	ct_size = my_nr_syscalls * sizeof(syscall);
-=======
-	int i;
-	spin_lock(&call_table_lock);
-	int ct_size = my_nr_syscalls * sizeof(syscall);
->>>>>>> 8560e893a15d1d2a3b0bf2d4a1a83147a07d49f3
 	replace_call_table = kmalloc(ct_size, GFP_KERNEL);
 	if (!replace_call_table) {
 		spin_unlock(&call_table_lock);
@@ -107,11 +101,8 @@ static long stop_monitor(long syscall, long pid)
 
 static long param_validate(long cmd, long syscall, long pid)
 {
-<<<<<<< HEAD
 	int is_itct, ai;
 
-=======
->>>>>>> 8560e893a15d1d2a3b0bf2d4a1a83147a07d49f3
 	if (syscall == MY_SYSCALL_NO || syscall == __NR_exit_group || pid < 0)
 		return -EINVAL;
 
@@ -132,22 +123,13 @@ static long param_validate(long cmd, long syscall, long pid)
 			return -EPERM;
 
 	}
-<<<<<<< HEAD
 	is_itct = cmd == REQUEST_SYSCALL_INTERCEPT;
 	is_itct = is_itct || cmd == REQUEST_SYSCALL_RELEASE;
-=======
-	int is_itct = cmd == REQUEST_SYSCALL_INTERCEPT;
-	is_itct = is_ictl || cmd == REQUEST_SYSCALL_RELEASE;
->>>>>>> 8560e893a15d1d2a3b0bf2d4a1a83147a07d49f3
 	if (is_itct) {
 		if (0 != current->cred->euid)
 			return -EPERM;
 
-<<<<<<< HEAD
 		ai = replace_call_table[syscall] != NULL;
-=======
-		int ai = replace_call_table[syscall] != NULL;
->>>>>>> 8560e893a15d1d2a3b0bf2d4a1a83147a07d49f3
 		ai = ai && (cmd == REQUEST_SYSCALL_INTERCEPT);
 		if (ai)
 			return -EBUSY;

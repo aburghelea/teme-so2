@@ -70,20 +70,12 @@ void sci_info_remove_for_pid_syscall(long pid, long syscall)
 {
 	struct list_head *p, *q;
 	struct sci_info *si;
-<<<<<<< HEAD
 	int valid_pid;
 	spin_lock(&sci_info_lock);
 	list_for_each_safe(p, q, &head) {
 		si = list_entry(p, struct sci_info, list);
 		valid_pid = si->pid == pid || si->pid == 0;
 		if (valid_pid && si->syscall == syscall) {
-=======
-	spin_lock(&sci_info_lock);
-	list_for_each_safe(p, q, &head) {
-		si = list_entry(p, struct sci_info, list);
-		int valid_pid = si->pid == pid || si->pid == 0;
-		if ((valid_pid && si->syscall == syscall) {
->>>>>>> 8560e893a15d1d2a3b0bf2d4a1a83147a07d49f3
 			list_del(p);
 			kfree(si);
 		}
@@ -100,16 +92,6 @@ void sci_info_remove_for_pid_syscall(long pid, long syscall)
 int sci_info_contains_pid_syscall(long pid, long syscall)
 {
 	int status = 0;
-<<<<<<< HEAD
-=======
-
-	spin_lock(&sci_info_lock);
-	status = sci_info_contains_pid_syscall_unlocked(pid, syscall);
-	spin_unlock(&sci_info_lock);
-
-	return status;
-}
->>>>>>> 8560e893a15d1d2a3b0bf2d4a1a83147a07d49f3
 
 	spin_lock(&sci_info_lock);
 	status = sci_info_contains_pid_syscall_unlocked(pid, syscall);
@@ -122,13 +104,9 @@ int sci_info_contains_pid_syscall(long pid, long syscall)
  */
 void sci_info_purge_list(void)
 {
-<<<<<<< HEAD
 	spin_lock(&sci_info_lock);
 	sci_info_remove_for_syscall(-1);
 	spin_unlock(&sci_info_lock);
-=======
-	sci_info_remove_for_syscall(-1);
->>>>>>> 8560e893a15d1d2a3b0bf2d4a1a83147a07d49f3
 }
 
 /**
@@ -157,13 +135,6 @@ static struct sci_info *sci_info_alloc(long syscall, long pid)
 {
 	struct sci_info *si;
 
-<<<<<<< HEAD
-=======
-static struct sci_info *sci_info_alloc(long syscall, long pid)
-{
-	struct sci_info *si;
-
->>>>>>> 8560e893a15d1d2a3b0bf2d4a1a83147a07d49f3
 	si = kmalloc(sizeof(*si), GFP_KERNEL);
 	if (si == NULL)
 		return NULL;
