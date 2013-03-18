@@ -2,10 +2,9 @@
 #define _SCI_LIST_H
 
 struct sci_info {
-    long pid;
-    long syscall;
-
-    struct list_head list;
+	long pid;
+	long syscall;
+	struct list_head list;
 };
 
 void sci_info_init(void);
