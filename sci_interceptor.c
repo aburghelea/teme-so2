@@ -140,11 +140,11 @@ static long param_validate(long cmd, long syscall, long pid)
 
 asmlinkage long my_syscall(int cmd, long syscall, long pid)
 {
-    long invalid = param_validate(cmd, syscall, pid);
-    if (invalid)
-        return invalid;
-    
     int code = 0;
+    long code= param_validate(cmd, syscall, pid);
+    
+    if (code)
+        return code;
 
     switch (cmd) {
     case REQUEST_SYSCALL_INTERCEPT: {
