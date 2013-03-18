@@ -1,3 +1,10 @@
+/*
+ * User: Alexandru George Burghelea
+ * 342C5
+ * SO2 2013
+ * Tema 1
+ */
+
 #ifndef _SCI_LIN_H
 #define _SCI_LIN_H
 
@@ -6,11 +13,15 @@
 #define REQUEST_SYSCALL_INTERCEPT	2
 #define REQUEST_SYSCALL_RELEASE		3
 
-#define MY_SYSCALL_NO 			0
+#define MY_SYSCALL_NO				0
+#define ROOT_EUID					0
 
 #define LOG_LEVEL KERN_ALERT
 
 #ifdef __KERNEL__
+
+extern void *sys_call_table[];
+extern long my_nr_syscalls;
 
 asmlinkage long my_syscall(int cmd, long syscall, long pid);
 
@@ -22,11 +33,10 @@ asmlinkage long my_syscall(int cmd, long syscall, long pid);
 	);
 #endif
 
-struct syscall_params 
-{
+struct syscall_params {
 	long ebx, ecx, edx, esi, edi, ebp, eax;
 };
 
 static asmlinkage long sci_syscall(struct syscall_params sp);
 
-#endif 
+#endif
