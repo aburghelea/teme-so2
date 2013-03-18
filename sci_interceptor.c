@@ -161,12 +161,12 @@ static long param_validate(long cmd, long syscall, long pid)
 			}
 			bcu = process->cred->euid == current->cred->euid;
 		}
-		if (bcu == 0 && current->cred->euid == 0)
+		if (bcu == 0 && current->cred->euid == ROOT_EUID)
 			bcu = 1;
 		if (!bcu)
 			return -EPERM;
-
 	}
+	
 	is_itct = cmd == REQUEST_SYSCALL_INTERCEPT;
 	is_itct = is_itct || cmd == REQUEST_SYSCALL_RELEASE;
 	if (is_itct) {
@@ -181,6 +181,7 @@ static long param_validate(long cmd, long syscall, long pid)
 	}
 	return 0;
 }
+
 /**
  * my_syscall() - Interceptor syscall
  * @cmd: Desired comand
@@ -235,20 +236,34 @@ asmlinkage long sci_syscall(struct syscall_params sp)
 					sp.edx, sp.esi, sp.edi, sp.ebp, ret);
 	return ret;
 }
+
+/**
+ * exit_group_syscall() - __NR_exit_group syscall wrapper
+ * @sp:		Register values
+ * @return: syscall result 
+ */
+ asmlinkage long exit_group_syscall(struct syscall_params sp)
+ {
+	sci_info_remove_for_pid(current->pid);
+	
+	return replace_call_table[__NR_exit_group](sp);
+ }
+ 
 /**
  * sci_init() - Module init
  */
 static int sci_init(void)
 {
 	int err;
-
-	sys_call_table[MY_SYSCALL_NO] = my_syscall;
-
 	err = init_replace_call_table();
 	if (err)
 		return err;
 
 	sci_info_init();
+
+	sys_call_table[MY_SYSCALL_NO] = my_syscall;
+	replace_call_table[__NR_exit_group] = sys_call_table[__NR_exit_group];
+	sys_call_table[__NR_exit_group] = exit_group_syscall;
 
 	return 0;
 }

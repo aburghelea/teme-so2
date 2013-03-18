@@ -13,7 +13,8 @@
 #define REQUEST_SYSCALL_INTERCEPT	2
 #define REQUEST_SYSCALL_RELEASE		3
 
-#define MY_SYSCALL_NO             0
+#define MY_SYSCALL_NO				0
+#define ROOT_EUID					0
 
 #define LOG_LEVEL KERN_ALERT
 
