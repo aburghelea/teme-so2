@@ -60,7 +60,7 @@ static void clean_replace_call_table(void)
     spin_unlock(&call_table_lock);
 }
 
-static int start_intercept(long syscall)
+static long start_intercept(long syscall)
 {
     if (replace_call_table[syscall] != NULL)
         return -EBUSY;
@@ -71,7 +71,7 @@ static int start_intercept(long syscall)
     return 0;
 }
 
-static int stop_intercept (long syscall)
+static long stop_intercept (long syscall)
 {
     if (replace_call_table[syscall] == NULL)
         return -EINVAL;
@@ -82,7 +82,7 @@ static int stop_intercept (long syscall)
     return 0;
 }
 
-static int start_monitor (long syscall, long pid)
+static long start_monitor (long syscall, long pid)
 {
     if (sci_info_contains_pid_syscall(pid,syscall))
         return -EBUSY;
@@ -92,7 +92,7 @@ static int start_monitor (long syscall, long pid)
     return 0;
 }
 
-static int stop_monitor (long syscall, long pid)
+static long stop_monitor (long syscall, long pid)
 {
     if (!sci_info_contains_pid_syscall(pid,syscall)) 
         return -EINVAL;
@@ -140,7 +140,7 @@ static long param_validate(long cmd, long syscall, long pid)
 
 asmlinkage long my_syscall(int cmd, long syscall, long pid)
 {
-    int code = 0;
+    long code = 0;
     code= param_validate(cmd, syscall, pid);
     
     if (code)
