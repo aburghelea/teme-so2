@@ -3,11 +3,27 @@
 #include "sci_list.h"
 #include "sci_win.h"
 
-// void **OriginalServiceTableShadow;
-// void **OriginalServiceTable;
-// unsigned char *OriginalSpt;
-// unsigned char *OriginalShadowSpt;
-// int OriginalLs;
+
+void **OriginalServiceTableShadow;
+void **OriginalServiceTable;
+
+void InitServiceDescriptorTable() {
+	
+	long no_syscalls = MY_SYSCALL_NO + 1;
+	SIZE_T sts = no_syscalls * sizeof(void *);
+	void ** newSt = ExAllocatePoolWithTag(NonPagedPool, sts, MEM_TAG);
+
+	OriginalServiceTable = KeServiceDescriptorTable[0].st;
+	OriginalServiceTableShadow = KeServiceDescriptorTableShadow->st;
+
+	KeServiceDescriptorTable[0].st = newSt;
+	KeServiceDescriptorTableShadow->st = newSt;
+}
+
+void ResetServiceDescriptorTable(){
+	KeServiceDescriptorTable[0].st = OriginalServiceTable;
+	KeServiceDescriptorTableShadow->st = OriginalServiceTableShadow;	
+}
 
 struct std OriginalDescriptorTable;
 struct std OriginalDescriptorTableShadow;
