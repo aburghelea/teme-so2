@@ -138,8 +138,8 @@ extern ZwOpenThreadToken(HANDLE thread, ACCESS_MASK am, BOOLEAN utc, HANDLE *tok
 extern ZwOpenProcessToken(HANDLE process, ACCESS_MASK am, HANDLE *token);
 extern ZwQueryInformationToken(HANDLE token, long tic, void *ti, unsigned long til, unsigned long *rtil);
 extern BOOLEAN RtlEqualSid (PSID, PSID);
-NTSTATUS ZwOpenProcess (OUT PHANDLE ProcessHandle, IN ACCESS_MASK DesiredAccess,
-	IN POBJECT_ATTRIBUTES ObjectAttributes, IN PCLIENT_ID ClientId OPTIONAL);
+// extern NTSTATUS ZwOpenProcess (OUT PHANDLE ProcessHandle, IN ACCESS_MASK DesiredAccess,
+	// IN POBJECT_ATTRIBUTES ObjectAttributes, IN PCLIENT_ID ClientId OPTIONAL);
 extern NTSTATUS ZwAdjustPrivilegesToken(HANDLE tokenHandle,
 		BOOLEAN DisableAllPrivileges,
 		PTOKEN_PRIVILEGES NewState,
