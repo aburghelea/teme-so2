@@ -174,7 +174,8 @@ void InitServiceDescriptorTable() {
 	// shallowCopyDT(&OriginalDescriptorTableShadow, KeServiceDescriptorTableShadow);
 
 	// CurrentDescriptorTable = allocateDescriptorTableInfo();
-
+ 
+ 
 	// deepCopyDescriptoTableInfo(CurrentDescriptorTable, &OriginalDescriptorTable);
 	// WPON();
 	// shallowCopyDT(&KeServiceDescriptorTable[0],CurrentDescriptorTable);
