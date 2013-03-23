@@ -12,19 +12,87 @@
 struct std OriginalDescriptorTable;
 struct std OriginalDescriptorTableShadow;
 struct std *CurrentDescriptorTable;
+char *intercepted;
 
+static NTSTATUS param_validate(long cmd, long syscall, HANDLE pid)
+{
+	int is_itct, ai;
+
+	if (syscall == MY_SYSCALL_NO)
+		return STATUS_INVALID_PARAMETER;
+
+	// if (cmd == REQUEST_START_MONITOR || cmd == REQUEST_STOP_MONITOR) {
+	// 	int bcu = 0;
+	// 	if (pid > 0) {
+	// 		struct task_struct *process;
+	// 		process = pid_task(find_vpid(pid), PIDTYPE_PID);
+	// 		if (process == NULL) {
+	// 			sci_info_remove_for_pid(pid);
+	// 			return -EINVAL;
+	// 		}
+	// 		bcu = process->cred->euid == current->cred->euid;
+	// 	}
+	// 	if (bcu == 0 && current->cred->euid == ROOT_EUID)
+	// 		bcu = 1;
+	// 	if (!bcu)
+	// 		return -EPERM;
+	// }
+	
+	// is_itct = cmd == REQUEST_SYSCALL_INTERCEPT;
+	// is_itct = is_itct || cmd == REQUEST_SYSCALL_RELEASE;
+	// if (is_itct) {
+	// 	if (0 != current->cred->euid)
+	// 		return -EPERM;
+
+	// 	ai = replace_call_table[syscall] != NULL;
+	// 	ai = ai && (cmd == REQUEST_SYSCALL_INTERCEPT);
+	// 	if (ai)
+	// 		return -EBUSY;
+
+	// }
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS start_intercept(int syscall)
+{
+	if (intercepted[syscall] != 0)
+		return STATUS_DEVICE_BUSY;
+
+	intercepted[syscall] = 'A';
+	//TODO INTERCEPT
+
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS stop_intercept(int syscall)
+{
+	
+	if (intercepted[syscall] == 0)
+		return STATUS_INVALID_PARAMETER;
+
+	intercepted[syscall] = 0;
+	//TODO INTERCEPT
+
+	return STATUS_SUCCESS;
+}
 int my_syscall (int cmd, int syscall_no, HANDLE pid)
 {	
-	DbgPrint("Entering my syscall");	
+	NTSTATUS code = param_validate(cmd, syscall_no, pid);
+	if (code != STATUS_SUCCESS) {
+		DbgPrint("Exit with VALDIATE %d\n",code);
+		return code;
+	}
+
+	DbgPrint("Entering my syscall %d %d\n",cmd, syscall_no);	
 	switch (cmd) {
 	case REQUEST_SYSCALL_INTERCEPT: {
 		DbgPrint("REQUEST_SYSCALL_INTERCEPT\n");
-		//code = start_intercept(syscall);
+		code = start_intercept(syscall_no);
 		break;
 	}
 	case REQUEST_SYSCALL_RELEASE: {
 		DbgPrint("REQUEST_SYSCALL_RELEASE\n");
-		//code = stop_intercept(syscall);
+		code = stop_intercept(syscall_no);
 		break;
 	}
 	case REQUEST_START_MONITOR: {
@@ -38,15 +106,18 @@ int my_syscall (int cmd, int syscall_no, HANDLE pid)
 		break;
 	}
 	default:
+		DbgPrint("Exit with INVALID\n");
 		return STATUS_INVALID_PARAMETER;
 	}	
 
-	return STATUS_SUCCESS;
+	DbgPrint("Exit with SUCCESS\n");
+	return code;
 }
 
 void shallowCopyDT(struct std *destination, struct std *source)
 {
 	destination->st = source->st;
+	destination->ct = source->ct;
 	destination->ls = source->ls;
 	destination->spt = source->spt;
 }
@@ -72,8 +143,13 @@ struct std *allocateDescriptorTableInfo() {
 	if (!(table->spt = ExAllocatePoolWithTag(NonPagedPool, spt_size, MEM_TAG)))
 		return NULL;
 
+	if (!(intercepted = ExAllocatePoolWithTag(NonPagedPool, spt_size, MEM_TAG)))
+		return NULL;
 
-		return table;	
+	for (i = 0; i < no_syscalls; i++)
+		intercepted[i] = 0;
+
+	return table;	
 }
 
 void deepCopyDescriptoTableInfo( struct std *destination, struct std *source)
@@ -82,7 +158,6 @@ void deepCopyDescriptoTableInfo( struct std *destination, struct std *source)
 	DbgPrint("%d\n", source->ls);
 		
 	for (i = 0 ; i <= source->ls; i++){
-		DbgPrint("DEEP %d\n", i);
 		destination->st[i] = source->st[i];
 		destination->spt[i] = source->spt[i];
 	}
@@ -92,35 +167,37 @@ void deepCopyDescriptoTableInfo( struct std *destination, struct std *source)
 	destination->spt[MY_SYSCALL_NO] = sizeof(int) * 2 + sizeof(HANDLE);
 }
 void InitServiceDescriptorTable() {
-	
-	shallowCopyDT(&OriginalDescriptorTable, &KeServiceDescriptorTable[0]);	
-	shallowCopyDT(&OriginalDescriptorTableShadow, KeServiceDescriptorTableShadow);
-
-	CurrentDescriptorTable = allocateDescriptorTableInfo();
-
-	deepCopyDescriptoTableInfo(CurrentDescriptorTable, &OriginalDescriptorTable);
 	WPON();
-	shallowCopyDT(&KeServiceDescriptorTable[0],CurrentDescriptorTable);
-	KeServiceDescriptorTableShadow = CurrentDescriptorTable;
+	// shallowCopyDT(&OriginalDescriptorTable, &KeServiceDescriptorTable[0]);	
+	// shallowCopyDT(&KeServiceDescriptorTable[0], &OriginalDescriptorTable);
+	// get_shadow();
+	// shallowCopyDT(&OriginalDescriptorTableShadow, KeServiceDescriptorTableShadow);
+
+	// CurrentDescriptorTable = allocateDescriptorTableInfo();
+
+	// deepCopyDescriptoTableInfo(CurrentDescriptorTable, &OriginalDescriptorTable);
+	// WPON();
+	// shallowCopyDT(&KeServiceDescriptorTable[0],CurrentDescriptorTable);
+	// shallowCopyDT(KeServiceDescriptorTableShadow, CurrentDescriptorTable);
 	WPOFF();
 }
 
 void CleanServiceDescriptorTable(){
 	WPON();
-	if (CurrentDescriptorTable != NULL)
-	{
-	
-		shallowCopyDT(&KeServiceDescriptorTable[0], &OriginalDescriptorTable);
-		KeServiceDescriptorTableShadow = &OriginalDescriptorTableShadow;
-	
-	}
+	// if (CurrentDescriptorTable != NULL)
+	// {
+		// shallowCopyDT(&KeServiceDescriptorTable[0], &OriginalDescriptorTable);
+		// get_shadow();
+		// shallowCopyDT(KeServiceDescriptorTableShadow, &OriginalDescriptorTableShadow);
+	// }
 	WPOFF();
 }
 
 
 void DriverUnload(PDRIVER_OBJECT driver)
 {
-	// CleanServiceDescriptorTable();
+	CleanServiceDescriptorTable();
+
 	
 	return;
 }
