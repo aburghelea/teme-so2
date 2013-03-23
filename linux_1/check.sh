@@ -1,10 +1,10 @@
 #!/bin/bash
 
 make clean && make
-cd  tema1-checker-lin
+cd  checker
 make -f Makefile.checker clean
 make -f Makefile.checker
-rm sci.ko
+rm sci.ko -rf
 cp ../sci.ko .
 ./test
 cd ../
