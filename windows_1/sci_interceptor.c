@@ -7,24 +7,6 @@
 void **OriginalServiceTableShadow;
 void **OriginalServiceTable;
 
-void InitServiceDescriptorTable() {
-	
-	long no_syscalls = MY_SYSCALL_NO + 1;
-	SIZE_T sts = no_syscalls * sizeof(void *);
-	void ** newSt = ExAllocatePoolWithTag(NonPagedPool, sts, MEM_TAG);
-
-	OriginalServiceTable = KeServiceDescriptorTable[0].st;
-	OriginalServiceTableShadow = KeServiceDescriptorTableShadow->st;
-
-	KeServiceDescriptorTable[0].st = newSt;
-	KeServiceDescriptorTableShadow->st = newSt;
-}
-
-void ResetServiceDescriptorTable(){
-	KeServiceDescriptorTable[0].st = OriginalServiceTable;
-	KeServiceDescriptorTableShadow->st = OriginalServiceTableShadow;	
-}
-
 struct std OriginalDescriptorTable;
 struct std OriginalDescriptorTableShadow;
 struct std *CurrentDescriptorTable;
@@ -182,31 +164,29 @@ void deepCopyDescriptoTableInfo( struct std *destination, struct std *source)
 	destination->ls = MY_SYSCALL_NO + 1;
 	destination->spt[MY_SYSCALL_NO] = sizeof(int) * 2 + sizeof(HANDLE);
 }
+
 void InitServiceDescriptorTable() {
 	WPON();
-	// shallowCopyDT(&OriginalDescriptorTable, &KeServiceDescriptorTable[0]);	
-	// shallowCopyDT(&KeServiceDescriptorTable[0], &OriginalDescriptorTable);
-	// get_shadow();
-	// shallowCopyDT(&OriginalDescriptorTableShadow, KeServiceDescriptorTableShadow);
+	shallowCopyDT(&OriginalDescriptorTable, &KeServiceDescriptorTable[0]);	
+	shallowCopyDT(&OriginalDescriptorTableShadow, KeServiceDescriptorTableShadow);
 
-	// CurrentDescriptorTable = allocateDescriptorTableInfo();
+	CurrentDescriptorTable = allocateDescriptorTableInfo();
  
  
-	// deepCopyDescriptoTableInfo(CurrentDescriptorTable, &OriginalDescriptorTable);
-	// WPON();
-	// shallowCopyDT(&KeServiceDescriptorTable[0],CurrentDescriptorTable);
-	// shallowCopyDT(KeServiceDescriptorTableShadow, CurrentDescriptorTable);
+	deepCopyDescriptoTableInfo(CurrentDescriptorTable, &OriginalDescriptorTable);
+	WPON();
+	shallowCopyDT(&KeServiceDescriptorTable[0],CurrentDescriptorTable);
+	shallowCopyDT(KeServiceDescriptorTableShadow, CurrentDescriptorTable);
 	WPOFF();
 }
 
 void CleanServiceDescriptorTable(){
 	WPON();
-	// if (CurrentDescriptorTable != NULL)
-	// {
-		// shallowCopyDT(&KeServiceDescriptorTable[0], &OriginalDescriptorTable);
-		// get_shadow();
-		// shallowCopyDT(KeServiceDescriptorTableShadow, &OriginalDescriptorTableShadow);
-	// }
+	if (CurrentDescriptorTable != NULL)
+	{
+		shallowCopyDT(&KeServiceDescriptorTable[0], &OriginalDescriptorTable);
+		shallowCopyDT(KeServiceDescriptorTableShadow, &OriginalDescriptorTableShadow);
+	}
 	WPOFF();
 }
 
