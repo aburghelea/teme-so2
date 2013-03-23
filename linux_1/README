@@ -3,16 +3,19 @@ Burghelea Alexandru George
 342C5
 Martie 2013
 
-Am rezolva tema folosind un vector de syscall-uri alocat dinamic cu 
+Am rezolvat tema folosind un vector de syscall-uri alocat dinamic cu 
 my_nr_syscalls element (pointer la functii). Pentru procesele deja monitorizate
 am folosit o lista kernel de perechi pid, syscall.
+
 La initializarea modulului aloc vectorul si il setez pe tot pe NULL,
 cand vine un semnal de interceptare validez parametrii conform enuntului
 dupa care mut syscall-ul dorit in vectorul meu, si il suprascriu pe cel original
+
 La descaracrea modului refac tabelul de syscaluri originale si eliberez
 memoria ocupata de vector si lista.
 Cand este interceptat un apel de sistem, verific daca estei(alaturi de pid-ul 
 procesului curent) in lista pid-syscall. In caz afirmativ il loghez.
+
 De fiecare data cand un proces se termina, interceptand syscall-ul 
 __NR_exit_group il sterg din lista de pid-syscall (daca era monitorizat).
 Sincronizarea este de tip pesimist, cate un spin_lock pentru lista si vector
