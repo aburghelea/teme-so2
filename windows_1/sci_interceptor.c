@@ -3,10 +3,6 @@
 #include "sci_list.h"
 #include "sci_win.h"
 
-
-void **OriginalServiceTableShadow;
-void **OriginalServiceTable;
-
 struct std OriginalDescriptorTable;
 struct std OriginalDescriptorTableShadow;
 struct std *CurrentDescriptorTable;
@@ -19,36 +15,100 @@ static NTSTATUS param_validate(long cmd, long syscall, HANDLE pid)
 	if (syscall == MY_SYSCALL_NO)
 		return STATUS_INVALID_PARAMETER;
 
-	// if (cmd == REQUEST_START_MONITOR || cmd == REQUEST_STOP_MONITOR) {
-	// 	int bcu = 0;
-	// 	if (pid > 0) {
-	// 		struct task_struct *process;
-	// 		process = pid_task(find_vpid(pid), PIDTYPE_PID);
-	// 		if (process == NULL) {
-	// 			sci_info_remove_for_pid(pid);
-	// 			return -EINVAL;
-	// 		}
-	// 		bcu = process->cred->euid == current->cred->euid;
-	// 	}
-	// 	if (bcu == 0 && current->cred->euid == ROOT_EUID)
-	// 		bcu = 1;
-	// 	if (!bcu)
-	// 		return -EPERM;
-	// }
+	if (cmd == REQUEST_START_MONITOR || cmd == REQUEST_STOP_MONITOR) {
+		BOOLEAN bcu = 0;
+	 	if (pid != NULL) {
+	 		PTOKEN_USER currentUser;
+	 		PTOKEN_USER requestingUser;
+	 		GetCurrentUser(&currentUser);
+	 		
+	 		GetUserOf(pid, &requestingUser);
+	 		bcu = CheckUsers(currentUser, requestingUser);
+	 		DbgPrint("Sunt de la acealsi %d", bcu == FALSE);
+		}
+	 	if (bcu == FALSE && UserAdmin())
+	 			bcu = TRUE;
+	 	if (bcu == FALSE){
+	 		DbgPrint("Exit denied\n");
+	 		return STATUS_ACCESS_DENIED;
+	 	}
+	}
 	
-	// is_itct = cmd == REQUEST_SYSCALL_INTERCEPT;
-	// is_itct = is_itct || cmd == REQUEST_SYSCALL_RELEASE;
-	// if (is_itct) {
-	// 	if (0 != current->cred->euid)
-	// 		return -EPERM;
+	is_itct = cmd == REQUEST_SYSCALL_INTERCEPT;
+	is_itct = is_itct || cmd == REQUEST_SYSCALL_RELEASE;
+	if (is_itct) {
+	 	if (!UserAdmin())
+	 		return STATUS_ACCESS_DENIED;
 
-	// 	ai = replace_call_table[syscall] != NULL;
-	// 	ai = ai && (cmd == REQUEST_SYSCALL_INTERCEPT);
-	// 	if (ai)
+	 	// ai = intercepted[syscall] != 0;
+	 	// ai = ai && (cmd == REQUEST_SYSCALL_INTERCEPT);
+	 	// if (ai)
 	// 		return -EBUSY;
 
-	// }
+	}
 	return STATUS_SUCCESS;
+}
+
+
+ 
+NTSTATUS interceptor()
+{
+	NTSTATUS (*f)();
+
+    int syscall, param_size, syscall_table;
+    int syscall_index, r;
+    void *old_stack, *new_stack;
+ 
+    _asm mov syscall, eax
+ 
+    syscall_table = syscall >> 12;
+    syscall_index = syscall & 0x0000FFF;
+    param_size = KeServiceDescriptorTable[syscall_table].spt[syscall_index];
+ 
+    _asm mov old_stack, ebp
+    _asm add old_stack, 8
+    _asm sub esp, param_size
+    _asm mov new_stack, esp
+ 
+    RtlCopyMemory(new_stack, old_stack, param_size);
+ 
+    f = OriginalDescriptorTable.st[syscall_index];
+    r = f();
+    DbgPrint("syscall %d returns %d\n", syscall, r);
+ 
+    return r;
+}
+ 
+void intercept(int syscall)
+{
+    int syscall_table, syscall_index;
+ 
+    syscall_table = syscall >> 12;
+    syscall_index = syscall & 0x0000FFF;
+    //f = KeServiceDescriptorTable[syscall_table].st[syscall_index];
+ 
+    /* save service descriptor table entry to f */
+ 
+    KeServiceDescriptorTable[syscall_table].st[syscall_index] = interceptor;
+    KeServiceDescriptorTableShadow[syscall_table].st[syscall_index] = interceptor;
+    DbgPrint("Intercept request\n");
+}
+
+void deintercept(int syscall)
+{
+    int syscall_table, syscall_index;
+ 
+    syscall_table = syscall >> 12;
+    syscall_index = syscall & 0x0000FFF;
+    //f = KeServiceDescriptorTable[syscall_table].st[syscall_index];
+ 
+    /* save service descriptor table entry to f */
+ 
+    KeServiceDescriptorTable[syscall_table].st[syscall_index] 
+    	= OriginalDescriptorTable.st[syscall_index];
+    
+    KeServiceDescriptorTableShadow[syscall_table].st[syscall_index] 
+    	= OriginalDescriptorTableShadow.st[syscall_index] ;
 }
 
 NTSTATUS start_intercept(int syscall)
@@ -57,7 +117,7 @@ NTSTATUS start_intercept(int syscall)
 		return STATUS_DEVICE_BUSY;
 
 	intercepted[syscall] = 'A';
-	//TODO INTERCEPT
+	intercept(syscall);
 
 	return STATUS_SUCCESS;
 }
@@ -69,7 +129,7 @@ NTSTATUS stop_intercept(int syscall)
 		return STATUS_INVALID_PARAMETER;
 
 	intercepted[syscall] = 0;
-	//TODO INTERCEPT
+	deintercept(syscall);
 
 	return STATUS_SUCCESS;
 }
