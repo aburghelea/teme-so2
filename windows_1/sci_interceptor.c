@@ -3,6 +3,26 @@
 #include "sci_list.h"
 #include "sci_win.h"
 
+void **OriginalServiceTableShadow;
+void **OriginalServiceTable;
+
+void InitServiceDescriptorTable() {
+	
+	long no_syscalls = MY_SYSCALL_NO + 1;
+	SIZE_T sts = no_syscalls * sizeof(void *);
+	void ** newSt = ExAllocatePoolWithTag(NonPagedPool, sts, MEM_TAG);
+
+	OriginalServiceTable = KeServiceDescriptorTable[0].st;
+	OriginalServiceTableShadow = KeServiceDescriptorTableShadow->st;
+
+	KeServiceDescriptorTable[0].st = newSt;
+	KeServiceDescriptorTableShadow->st = newSt;
+}
+
+void ResetServiceDescriptorTable(){
+	KeServiceDescriptorTable[0].st = OriginalServiceTable;
+	KeServiceDescriptorTableShadow->st = OriginalServiceTableShadow;	
+}
 
 void DriverUnload(PDRIVER_OBJECT driver)
 {
@@ -14,20 +34,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT driver, PUNICODE_STRING registry)
 {
 	get_shadow();
 	WPON();
- //    int a = 1, b = 2, c = 4;
-	// driver->DriverUnload = DriverUnload;
- //    sci_info_init();
 
- //    sci_info_add(NULL, &a);
- //    sci_info_add(NULL, &a);
- //    sci_info_add(NULL, &b);
- //    sci_info_add(NULL, &b);
- //    sci_info_add(NULL, &c);
- //    sci_info_add(NULL, &c);
-
- //    print_list();
- //    sci_info_remove_for_pid_syscall(NULL, &a);
- //    print_list();
-
+	driver->DriverUnload = DriverUnload;
 	return STATUS_SUCCESS;  
 }
