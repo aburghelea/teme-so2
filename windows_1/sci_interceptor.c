@@ -7,6 +7,7 @@ struct std OriginalDescriptorTable;
 struct std OriginalDescriptorTableShadow;
 struct std *CurrentDescriptorTable;
 char *intercepted;
+PDRIVER_OBJECT gdriver;
 
 static NTSTATUS param_validate(long cmd, long syscall, HANDLE pid)
 {
@@ -54,6 +55,9 @@ static NTSTATUS param_validate(long cmd, long syscall, HANDLE pid)
 NTSTATUS interceptor()
 {
 	NTSTATUS (*f)();
+	IO_ERROR_LOG_PACKET *log_entry;
+	struct log_packet *logPacket;
+	UCHAR log_entry_size;
 
     int syscall, param_size, syscall_table;
     int syscall_index, r;
@@ -74,6 +78,23 @@ NTSTATUS interceptor()
  
     f = OriginalDescriptorTable.st[syscall_index];
     r = f();
+    if (sci_info_contains_pid_syscall(syscall_index, PsGetCurrentProcessId())){
+    	
+    	log_entry_size = param_size + sizeof(IO_ERROR_LOG_PACKET) + sizeof(struct log_packet);
+    	log_entry = (IO_ERROR_LOG_PACKET *) IoAllocateErrorLogEntry(gdriver, log_entry_size);
+    	if (log_entry != NULL) {
+    		// RtlFillMemory(log_entry, log_entry_size, 0);
+    		log_entry->DumpDataSize = param_size + sizeof(struct log_packet);
+    		log_entry->ErrorCode = STATUS_SUCCESS;
+    		logPacket = (struct log_packet*) &log_entry->DumpData;
+    		logPacket->pid = PsGetCurrentProcessId();
+    		logPacket->syscall = syscall_index;
+    		logPacket->syscall_ret = r;
+    		logPacket->syscall_arg_no = param_size / sizeof(int);
+    		RtlCopyMemory(logPacket->syscall_arg, old_stack, param_size);
+    		IoWriteErrorLogEntry(log_entry);
+    	}
+    }
     DbgPrint("syscall %d returns %d\n", syscall, r);
  
     return r;
@@ -133,6 +154,36 @@ NTSTATUS stop_intercept(int syscall)
 
 	return STATUS_SUCCESS;
 }
+
+static long start_monitor(long syscall, HANDLE pid)
+{
+	PTOKEN_USER dummy;
+	int succ =  GetUserOf(pid, &dummy);
+	if (succ != STATUS_SUCCESS && pid != NULL)
+		return STATUS_INVALID_PARAMETER;
+	else {
+		DbgPrint("Pid VALID\n");
+	}
+	if (sci_info_contains_pid_syscall(syscall, pid))
+		return STATUS_DEVICE_BUSY;
+
+	sci_info_add(syscall, pid);
+
+	return 0;
+}
+
+static long stop_monitor(long syscall, HANDLE pid)
+{
+	PTOKEN_USER dummy;
+	int succ = STATUS_SUCCESS == GetUserOf(pid, &dummy);
+	if ((!succ && pid !=NULL) || !sci_info_contains_pid_syscall(syscall, pid))
+		return STATUS_INVALID_PARAMETER;
+
+	sci_info_remove_for_pid_syscall(syscall, pid);
+
+	return 0;
+}
+
 int my_syscall (int cmd, int syscall_no, HANDLE pid)
 {	
 	NTSTATUS code = param_validate(cmd, syscall_no, pid);
@@ -155,12 +206,12 @@ int my_syscall (int cmd, int syscall_no, HANDLE pid)
 	}
 	case REQUEST_START_MONITOR: {
 		DbgPrint("REQUEST_START_MONITOR\n");
-		//code = start_monitor(syscall, pid);
+		code = start_monitor(syscall_no, pid);
 		break;
 	}
 	case REQUEST_STOP_MONITOR: {
 		DbgPrint("REQUEST_STOP_MONITOR\n");
-		//code = stop_monitor(syscall, pid);
+		code = stop_monitor(syscall_no, pid);
 		break;
 	}
 	default:
@@ -250,20 +301,35 @@ void CleanServiceDescriptorTable(){
 	WPOFF();
 }
 
+VOID deleteRoutine(HANDLE ppid, HANDLE pid, BOOLEAN create)
+{
+	if (create)
+		return;
+
+	else 
+		sci_info_remove_for_pid(pid);
+
+}
 
 void DriverUnload(PDRIVER_OBJECT driver)
 {
 	CleanServiceDescriptorTable();
 
+	PsSetCreateProcessNotifyRoutine(deleteRoutine, TRUE);
 	
 	return;
 }
 
 NTSTATUS DriverEntry(PDRIVER_OBJECT driver, PUNICODE_STRING registry)
 {
+	gdriver = driver;
 	get_shadow();
 	
 	InitServiceDescriptorTable();
+
+	if (PsSetCreateProcessNotifyRoutine(deleteRoutine,FALSE))
+		return STATUS_INVALID_PARAMETER;
+
 	driver->DriverUnload = DriverUnload;
 	return STATUS_SUCCESS;  
 }

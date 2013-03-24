@@ -13,7 +13,7 @@ void sci_info_init(void)
     head.Next = NULL;
 }
  
-NTSTATUS sci_info_add(void *syscall, HANDLE pid) 
+NTSTATUS sci_info_add(int syscall, HANDLE pid) 
 {
     struct sci_info *si;
 
@@ -61,7 +61,7 @@ NTSTATUS sci_info_remove_for_pid (HANDLE pid)
     return ret;
 }
 
-NTSTATUS sci_info_remove_for_syscall(void *syscall)
+NTSTATUS sci_info_remove_for_syscall(int syscall)
 {
     SINGLE_LIST_ENTRY *current, *prev;
     struct sci_info *si = NULL;
@@ -86,7 +86,7 @@ NTSTATUS sci_info_remove_for_syscall(void *syscall)
     return ret;
 }
 
-NTSTATUS sci_info_remove_for_pid_syscall(void *syscall, HANDLE pid)
+NTSTATUS sci_info_remove_for_pid_syscall(int syscall, HANDLE pid)
 {
     SINGLE_LIST_ENTRY *current, *prev;
     struct sci_info *si = NULL;
@@ -117,7 +117,7 @@ NTSTATUS sci_info_remove_for_pid_syscall(void *syscall, HANDLE pid)
     return FALSE;
 }
 
-BOOLEAN sci_info_contains_pid_syscall(void *syscall, HANDLE pid)
+BOOLEAN sci_info_contains_pid_syscall(int syscall, HANDLE pid)
 {
     SINGLE_LIST_ENTRY *current;
     struct sci_info *si = NULL;
