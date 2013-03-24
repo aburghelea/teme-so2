@@ -1,3 +1,10 @@
+/*
+ * User: Alexandru George Burghelea
+ * 342C5
+ * SO2 2013
+ * Tema 1
+ */
+
 #ifndef _TEMA1_H
 #define _TEMA1_H
 
@@ -6,7 +13,7 @@
 #define REQUEST_SYSCALL_INTERCEPT       2
 #define REQUEST_SYSCALL_RELEASE         3
 
-int my_syscall (int cmd, int syscall_no, HANDLE pid);
+int my_syscall ( int cmd, int syscall_no, HANDLE pid );
 
 #define MY_SYSCALL_NO           0x200
 
@@ -36,10 +43,10 @@ struct std {
 };
 
 /* descriptors of the system service table */
-_declspec(dllimport) struct std KeServiceDescriptorTable[2];
+_declspec ( dllimport ) struct std KeServiceDescriptorTable[2];
 struct std *KeServiceDescriptorTableShadow;
 
-static void get_shadow(void)
+static void get_shadow ( void )
 {
     /* The shadow table is not public, hence this undocumented way to gain access */
     KeServiceDescriptorTableShadow = KeServiceDescriptorTable - 2;
@@ -48,7 +55,7 @@ static void get_shadow(void)
 /* Register a new system service table.
  * To use this, you must first set to NULL the 'base' pointer of both the normal and
  * the shadow table. */
-extern BOOLEAN KeAddSystemServiceTable(void *base, int *ct, int ls, unsigned char *spt, int index);
+extern BOOLEAN KeAddSystemServiceTable ( void *base, int *ct, int ls, unsigned char *spt, int index );
 
 /* turn write protect off */
 #define WPOFF() \
@@ -130,60 +137,60 @@ typedef struct _TOKEN_PRIVILEGES {
     LUID_AND_ATTRIBUTES Privileges[1];
 } TOKEN_PRIVILEGES, *PTOKEN_PRIVILEGES;
 
-extern NTSTATUS PsLookupProcessByProcessId(HANDLE, PEPROCESS *);
-extern ULONG RtlLengthSid(PSID);
-extern NTKERNELAPI void ExFreePoolWithTag(PVOID, ULONG);
-extern ZwOpenThreadToken(HANDLE thread, ACCESS_MASK am, BOOLEAN utc, HANDLE *token);
-extern ZwOpenProcessToken(HANDLE process, ACCESS_MASK am, HANDLE *token);
-extern ZwQueryInformationToken(HANDLE token, long tic, void *ti, unsigned long til, unsigned long *rtil);
-extern BOOLEAN RtlEqualSid (PSID, PSID);
+extern NTSTATUS PsLookupProcessByProcessId ( HANDLE, PEPROCESS * );
+extern ULONG RtlLengthSid ( PSID );
+extern NTKERNELAPI void ExFreePoolWithTag ( PVOID, ULONG );
+extern ZwOpenThreadToken ( HANDLE thread, ACCESS_MASK am, BOOLEAN utc, HANDLE *token );
+extern ZwOpenProcessToken ( HANDLE process, ACCESS_MASK am, HANDLE *token );
+extern ZwQueryInformationToken ( HANDLE token, long tic, void *ti, unsigned long til, unsigned long *rtil );
+extern BOOLEAN RtlEqualSid ( PSID, PSID );
 // extern NTSTATUS ZwOpenProcess (OUT PHANDLE ProcessHandle, IN ACCESS_MASK DesiredAccess,
 // IN POBJECT_ATTRIBUTES ObjectAttributes, IN PCLIENT_ID ClientId OPTIONAL);
-extern NTSTATUS ZwAdjustPrivilegesToken(HANDLE tokenHandle,
-                                        BOOLEAN DisableAllPrivileges,
-                                        PTOKEN_PRIVILEGES NewState,
-                                        ULONG BufferLength,
-                                        PTOKEN_PRIVILEGES PreviousState,
-                                        PULONG ReturnLength);
+extern NTSTATUS ZwAdjustPrivilegesToken ( HANDLE tokenHandle,
+        BOOLEAN DisableAllPrivileges,
+        PTOKEN_PRIVILEGES NewState,
+        ULONG BufferLength,
+        PTOKEN_PRIVILEGES PreviousState,
+        PULONG ReturnLength );
 
 
 /* register a new system service table */
-extern BOOLEAN KeAddSystemServiceTable(void *base, int *ct, int ls, unsigned char *spt, int index);
+extern BOOLEAN KeAddSystemServiceTable ( void *base, int *ct, int ls, unsigned char *spt, int index );
 
-static NTSTATUS AdjustPrivilege(ULONG Privilege, BOOLEAN Enable)
+static NTSTATUS AdjustPrivilege ( ULONG Privilege, BOOLEAN Enable )
 {
     NTSTATUS status;
     TOKEN_PRIVILEGES privSet;
     HANDLE tokenHandle;
 
-    status = ZwOpenProcessToken(NtCurrentProcess(),
-                                TOKEN_ALL_ACCESS,
-                                &tokenHandle);
-    if (!NT_SUCCESS(status)) {
-        DbgPrint("NtOpenProcessToken failed, status 0x%x\n", status);
+    status = ZwOpenProcessToken ( NtCurrentProcess(),
+                                  TOKEN_ALL_ACCESS,
+                                  &tokenHandle );
+    if ( !NT_SUCCESS ( status ) ) {
+        DbgPrint ( "NtOpenProcessToken failed, status 0x%x\n", status );
         return status;
     }
 
     privSet.PrivilegeCount = 1;
-    privSet.Privileges[0].Luid = RtlConvertUlongToLuid(Privilege); // SE_LOAD_DRIVER_PRIVILEGE
-    if (Enable) {
+    privSet.Privileges[0].Luid = RtlConvertUlongToLuid ( Privilege ); // SE_LOAD_DRIVER_PRIVILEGE
+    if ( Enable ) {
         privSet.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED; //trebuie pus pek enable
     } else {
         privSet.Privileges[0].Attributes = 0;
     }
 
-    status = ZwAdjustPrivilegesToken(tokenHandle,
-                                     FALSE, // don't disable all privileges
-                                     &privSet,
-                                     sizeof(privSet),
-                                     NULL, // old privileges - don't care
-                                     NULL); // returned length
-    if (!NT_SUCCESS(status)) {
-        DbgPrint("ZwAdjustPrivilegesToken failed, status 0x%x\n", status);
+    status = ZwAdjustPrivilegesToken ( tokenHandle,
+                                       FALSE, // don't disable all privileges
+                                       &privSet,
+                                       sizeof ( privSet ),
+                                       NULL, // old privileges - don't care
+                                       NULL ); // returned length
+    if ( !NT_SUCCESS ( status ) ) {
+        DbgPrint ( "ZwAdjustPrivilegesToken failed, status 0x%x\n", status );
     }
 
     // Close the process token handle
-    (void) ZwClose(tokenHandle);
+    ( void ) ZwClose ( tokenHandle );
 
     return status;
 }
@@ -191,18 +198,18 @@ static NTSTATUS AdjustPrivilege(ULONG Privilege, BOOLEAN Enable)
 /* check for (high) privileges */
 static BOOLEAN UserAdmin()
 {
-    AdjustPrivilege(SE_LOAD_DRIVER_PRIVILEGE, 1);
-    return SeSinglePrivilegeCheck(RtlConvertLongToLuid(SE_LOAD_DRIVER_PRIVILEGE), UserMode);
+    AdjustPrivilege ( SE_LOAD_DRIVER_PRIVILEGE, 1 );
+    return SeSinglePrivilegeCheck ( RtlConvertLongToLuid ( SE_LOAD_DRIVER_PRIVILEGE ), UserMode );
 }
 
 /* check for same user */
-static BOOLEAN CheckUsers(TOKEN_USER *u1, TOKEN_USER *u2)
+static BOOLEAN CheckUsers ( TOKEN_USER *u1, TOKEN_USER *u2 )
 {
-    return RtlEqualSid(u1->User.Sid, u2->User.Sid);
+    return RtlEqualSid ( u1->User.Sid, u2->User.Sid );
 }
 
 /* get the user token of the pid specified process */
-static NTSTATUS GetUserOf(HANDLE pid, TOKEN_USER **user)
+static NTSTATUS GetUserOf ( HANDLE pid, TOKEN_USER **user )
 {
     HANDLE process;
     OBJECT_ATTRIBUTES oa;
@@ -211,42 +218,42 @@ static NTSTATUS GetUserOf(HANDLE pid, TOKEN_USER **user)
     NTSTATUS status;
     unsigned long len;
 
-    InitializeObjectAttributes(&oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
+    InitializeObjectAttributes ( &oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL );
     cid[0] = pid; cid[1] = 0;
-    if ((status = ZwOpenProcess(&process, GENERIC_READ, &oa, (PCLIENT_ID)cid)) != STATUS_SUCCESS)
+    if ( ( status = ZwOpenProcess ( &process, GENERIC_READ, &oa, ( PCLIENT_ID ) cid ) ) != STATUS_SUCCESS )
         return status;
-    status = ZwOpenProcessToken(process, TOKEN_READ, &token);
-    if (status != STATUS_SUCCESS)
+    status = ZwOpenProcessToken ( process, TOKEN_READ, &token );
+    if ( status != STATUS_SUCCESS )
         return status;
-    ZwQueryInformationToken(token, TokenUser, NULL, 0, &len);
-    if (!(*user = ExAllocatePoolWithTag(NonPagedPool, len, 'ot1t'))) {
+    ZwQueryInformationToken ( token, TokenUser, NULL, 0, &len );
+    if ( ! ( *user = ExAllocatePoolWithTag ( NonPagedPool, len, 'ot1t' ) ) ) {
         status = STATUS_NO_MEMORY;
         goto out;
     }
-    if ((status = ZwQueryInformationToken(token, TokenUser, *user, len, &len)) != STATUS_SUCCESS)
-        ExFreePoolWithTag(*user, 'ot1t');
+    if ( ( status = ZwQueryInformationToken ( token, TokenUser, *user, len, &len ) ) != STATUS_SUCCESS )
+        ExFreePoolWithTag ( *user, 'ot1t' );
 out:
-    ZwClose(process);
+    ZwClose ( process );
     return status;
 }
 
 /* get the user token for the current thread/process */
-static NTSTATUS GetCurrentUser(TOKEN_USER **user)
+static NTSTATUS GetCurrentUser ( TOKEN_USER **user )
 {
     HANDLE token;
     NTSTATUS status;
     unsigned long len;
 
 
-    if ((status = ZwOpenThreadToken(NtCurrentThread(), TOKEN_READ, TRUE, &token)) != STATUS_SUCCESS)
-        status = ZwOpenProcessToken(NtCurrentProcess(), TOKEN_READ, &token);
-    if (status != STATUS_SUCCESS)
+    if ( ( status = ZwOpenThreadToken ( NtCurrentThread(), TOKEN_READ, TRUE, &token ) ) != STATUS_SUCCESS )
+        status = ZwOpenProcessToken ( NtCurrentProcess(), TOKEN_READ, &token );
+    if ( status != STATUS_SUCCESS )
         return status;
-    ZwQueryInformationToken(token, TokenUser, NULL, 0, &len);
-    if (!(*user = ExAllocatePoolWithTag(NonPagedPool, len, 'ot1t')))
+    ZwQueryInformationToken ( token, TokenUser, NULL, 0, &len );
+    if ( ! ( *user = ExAllocatePoolWithTag ( NonPagedPool, len, 'ot1t' ) ) )
         return STATUS_NO_MEMORY;
-    if ((status = ZwQueryInformationToken(token, TokenUser, *user, len, &len)) != STATUS_SUCCESS)
-        ExFreePoolWithTag(*user, 'ot1t');
+    if ( ( status = ZwQueryInformationToken ( token, TokenUser, *user, len, &len ) ) != STATUS_SUCCESS )
+        ExFreePoolWithTag ( *user, 'ot1t' );
 
     return status;
 }
