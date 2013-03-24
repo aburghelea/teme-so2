@@ -6,11 +6,13 @@
 #define shallow shallowCopyDescriptorTable
 #define deep deepCopyDescriptoTableInfo
 
-struct std OrigDescriptorTable;
-struct std OrigDescriptorTableShadow;
-struct std *CurrentDescriptorTable;
-char *intercepted;
-PDRIVER_OBJECT gdriver;
+static struct std OrigDescriptorTable;
+static struct std OrigDescriptorTableShadow;
+static struct std *CurrentDescriptorTable;
+static char *intercepted;
+static PDRIVER_OBJECT gdriver;
+static KSPIN_LOCK sci_lock;
+static KIRQL sci_irql;
 
 static BOOLEAN userHasPermissionToMonitor(long cmd, HANDLE pid)
 {
@@ -79,17 +81,24 @@ NTSTATUS sci_syscall()
     void *old_stack, *new_stack;
 
     _asm mov syscall, eax
+
     t = syscall >> 12;
     i = syscall & 0x0000FFF;
+
     pr_s = KeServiceDescriptorTable[t].spt[i];
+
     _asm mov old_stack, ebp
     _asm add old_stack, 8
     _asm sub esp, pr_s
     _asm mov new_stack, esp
-    RtlCopyMemory(new_stack, old_stack, pr_s);
 
+    RtlCopyMemory(new_stack, old_stack, pr_s);
+    KeAcquireSpinLock(&sci_lock, &sci_irql);
     sysc = OrigDescriptorTable.st[i];
+    KeReleaseSpinLock(&sci_lock, sci_irql);
     ret = sysc();
+    
+    
     if (sci_info_contains_pid_syscall(i, PsGetCurrentProcessId())) {
 
         elp_s = pr_s + sizeof(IO_ERROR_LOG_PACKET) + sizeof(struct log_packet);
@@ -119,12 +128,16 @@ NTSTATUS start_intercept(int syscall)
     t = syscall >> 12;
     i = syscall & 0x0000FFF;
 
-    if (intercepted[i] != 0)
+    KeAcquireSpinLock(&sci_lock, &sci_irql);
+    if (intercepted[i] != 0) {
+        KeReleaseSpinLock(&sci_lock, sci_irql);
         return STATUS_DEVICE_BUSY;
-
+    }
+    
     intercepted[i] = 'A';
     KeServiceDescriptorTable[t].st[i] = sci_syscall;
     KeServiceDescriptorTableShadow[t].st[i] = sci_syscall;
+    KeReleaseSpinLock(&sci_lock, sci_irql);
 
     return STATUS_SUCCESS;
 }
@@ -136,12 +149,16 @@ NTSTATUS stop_intercept(int syscall)
     t = syscall >> 12;
     i = syscall & 0x0000FFF;
 
-    if (intercepted[i] == 0)
+    KeAcquireSpinLock(&sci_lock, &sci_irql);
+    if (intercepted[i] == 0) {
+        KeReleaseSpinLock(&sci_lock, sci_irql);
         return STATUS_INVALID_PARAMETER;
+    }
 
     intercepted[i] = 0;
     KeServiceDescriptorTable[t].st[i] = OrigDescriptorTable.st[i];
     KeServiceDescriptorTableShadow[t].st[i] = OrigDescriptorTableShadow.st[i];
+    KeReleaseSpinLock(&sci_lock, sci_irql);
 
     return STATUS_SUCCESS;
 }
@@ -152,7 +169,6 @@ static NTSTATUS start_monitor(long syscall, HANDLE pid)
         return STATUS_DEVICE_BUSY;
 
     return sci_info_add(syscall, pid);
-
 }
 
 static NTSTATUS stop_monitor(long syscall, HANDLE pid)
@@ -195,10 +211,12 @@ int my_syscall(int cmd, int syscall_no, HANDLE pid)
 
 void shallowCopyDescriptorTable(struct std *destination, struct std *source)
 {
+    KeAcquireSpinLock(&sci_lock, &sci_irql);
     destination->st = source->st;
     destination->ct = source->ct;
     destination->ls = source->ls;
     destination->spt = source->spt;
+    KeReleaseSpinLock(&sci_lock, sci_irql);
 }
 static void freeDescriptorTableInfo(struct std *table)
 {
@@ -250,7 +268,7 @@ exit:
 void deepCopyDescriptoTableInfo(struct std *destination, struct std *source)
 {
     int i = 0;
-
+    KeAcquireSpinLock(&sci_lock, &sci_irql);
     for (i = 0 ; i <= source->ls; i++) {
         destination->st[i] = source->st[i];
         destination->spt[i] = source->spt[i];
@@ -259,6 +277,7 @@ void deepCopyDescriptoTableInfo(struct std *destination, struct std *source)
     destination->st[MY_SYSCALL_NO] = my_syscall;
     destination->ls = MY_SYSCALL_NO + 1;
     destination->spt[MY_SYSCALL_NO] = sizeof(int) * 2 + sizeof(HANDLE);
+    KeReleaseSpinLock(&sci_lock, sci_irql);
 }
 
 NTSTATUS InitServiceDescriptorTable()
@@ -315,7 +334,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT driver, PUNICODE_STRING registry)
     gdriver = driver;
     get_shadow();
     sci_info_init();
-
+    KeInitializeSpinLock(&sci_lock);
     if (status=InitServiceDescriptorTable())
         return status;
 
