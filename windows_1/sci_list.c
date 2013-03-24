@@ -5,11 +5,15 @@ static SINGLE_LIST_ENTRY head = {NULL};
 static KSPIN_LOCK sci_info_lock;
 static KIRQL sci_info_irql;
 
+/* Initialize sci_info list and spinlock */
 void sci_info_init(void)
 {
     KeInitializeSpinLock(&sci_info_lock);
 }
 
+/* Add a entry for syscall-pid
+ * Returns STATUS_SUCCESS if the elemet was added or if it already exists
+ */
 NTSTATUS sci_info_add(int syscall, HANDLE pid)
 {
     struct sci_info *si;
@@ -35,6 +39,10 @@ NTSTATUS sci_info_add(int syscall, HANDLE pid)
     return STATUS_SUCCESS;
 }
 
+/* Removes all the entries that have the desired pid
+ * Returns STATUS_SUCCESS if operation completed,
+ * or STATUS_INVALID_PARAMETER otherwise
+ */
 NTSTATUS sci_info_remove_for_pid(HANDLE pid)
 {
     SINGLE_LIST_ENTRY *current, *prev;
@@ -62,6 +70,10 @@ NTSTATUS sci_info_remove_for_pid(HANDLE pid)
     return ret;
 }
 
+/* Removes the entries that have the desired syscall
+ * Returns STATUS_SUCCESS if operation completed,
+ * or STATUS_INVALID_PARAMETER otherwise
+ */
 NTSTATUS sci_info_remove_for_syscall(int syscall)
 {
     SINGLE_LIST_ENTRY *current, *prev;
@@ -89,6 +101,10 @@ NTSTATUS sci_info_remove_for_syscall(int syscall)
     return ret;
 }
 
+/* Removes all the entries that have the desired pid and syscall
+ * Returns STATUS_SUCCESS if operation completed,
+ * or STATUS_INVALID_PARAMETER otherwise
+ */
 NTSTATUS sci_info_remove_for_pid_syscall(int syscall, HANDLE pid)
 {
     SINGLE_LIST_ENTRY *current, *prev;
@@ -120,6 +136,10 @@ NTSTATUS sci_info_remove_for_pid_syscall(int syscall, HANDLE pid)
     return FALSE;
 }
 
+/* Checks if there is an entry with the pid and syscall
+ * Returns STATUS_SUCCESS if operation completed,
+ * or STATUS_INVALID_PARAMETER otherwise
+ */
 BOOLEAN sci_info_contains_pid_syscall(int syscall, HANDLE pid)
 {
     SINGLE_LIST_ENTRY *current;
@@ -145,6 +165,7 @@ BOOLEAN sci_info_contains_pid_syscall(int syscall, HANDLE pid)
     return FALSE;
 }
 
+/* Deletes the lists and frees the memory */
 void sci_info_destroy(void)
 {
     SINGLE_LIST_ENTRY *current, *next;
@@ -162,6 +183,9 @@ void sci_info_destroy(void)
     KeReleaseSpinLock(&sci_info_lock, sci_info_irql);
 }
 
+/* Prints the content of the list
+ * Deprecated (was used in testing)
+ */
 static void sci_info_print(void)
 {
     int val;

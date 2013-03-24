@@ -14,6 +14,7 @@ static PDRIVER_OBJECT gdriver;
 static KSPIN_LOCK sci_lock;
 static KIRQL sci_irql;
 
+/* Checks if the requester has the necesarry permisions to monitor */
 static BOOLEAN userHasPermissionToMonitor(long cmd, HANDLE pid)
 {
     BOOLEAN ret = FALSE;
@@ -33,6 +34,7 @@ static BOOLEAN userHasPermissionToMonitor(long cmd, HANDLE pid)
     return ret;
 }
 
+/* Checks if the requester has the necesarry permisions to intercept */
 static BOOLEAN userHasPermissionToIntercept(long cmd)
 {
     if (UserAdmin())
@@ -41,10 +43,11 @@ static BOOLEAN userHasPermissionToIntercept(long cmd)
     return cmd != REQUEST_SYSCALL_INTERCEPT && cmd != REQUEST_SYSCALL_RELEASE;
 }
 
+/* Checks if asking to monitor a valid process */
 static BOOLEAN monitoringValidPid(long cmd, HANDLE pid)
 {
     PTOKEN_USER dummy;
-    int succ =  GetUserOf(pid, &dummy);
+    int succ = GetUserOf(pid, &dummy);
 
     if (cmd != REQUEST_START_MONITOR && cmd != REQUEST_STOP_MONITOR)
         return TRUE;
@@ -55,6 +58,9 @@ static BOOLEAN monitoringValidPid(long cmd, HANDLE pid)
     return TRUE;
 }
 
+/* Validates the parameters (static analisys)
+ * Returns the the error_code if any, or STATUS_SUCCESS
+ */
 static NTSTATUS param_validate(long cmd, long syscall, HANDLE pid)
 {
     int is_itct, ai;
@@ -71,6 +77,9 @@ static NTSTATUS param_validate(long cmd, long syscall, HANDLE pid)
     return STATUS_SUCCESS;
 }
 
+/* Custom sycall (interceptor)
+ * Intercepts and executes and logs (if necessary) the original syscalls
+ */
 NTSTATUS sci_syscall()
 {
     NTSTATUS(*sysc)();
@@ -97,8 +106,8 @@ NTSTATUS sci_syscall()
     sysc = OrigDescriptorTable.st[i];
     KeReleaseSpinLock(&sci_lock, sci_irql);
     ret = sysc();
-    
-    
+
+
     if (sci_info_contains_pid_syscall(i, PsGetCurrentProcessId())) {
 
         elp_s = pr_s + sizeof(IO_ERROR_LOG_PACKET) + sizeof(struct log_packet);
@@ -121,6 +130,7 @@ NTSTATUS sci_syscall()
     return ret;
 }
 
+/* Stops the interception of a syscall */
 NTSTATUS start_intercept(int syscall)
 {
     int t, i;
@@ -133,7 +143,7 @@ NTSTATUS start_intercept(int syscall)
         KeReleaseSpinLock(&sci_lock, sci_irql);
         return STATUS_DEVICE_BUSY;
     }
-    
+
     intercepted[i] = 'A';
     KeServiceDescriptorTable[t].st[i] = sci_syscall;
     KeServiceDescriptorTableShadow[t].st[i] = sci_syscall;
@@ -142,6 +152,7 @@ NTSTATUS start_intercept(int syscall)
     return STATUS_SUCCESS;
 }
 
+/* Stops the interception of a syscall */
 NTSTATUS stop_intercept(int syscall)
 {
     int t, i;
@@ -163,6 +174,7 @@ NTSTATUS stop_intercept(int syscall)
     return STATUS_SUCCESS;
 }
 
+/* Starts the monitor of a syscall for a pid */
 static NTSTATUS start_monitor(long syscall, HANDLE pid)
 {
     if (sci_info_contains_pid_syscall(syscall, pid))
@@ -171,6 +183,7 @@ static NTSTATUS start_monitor(long syscall, HANDLE pid)
     return sci_info_add(syscall, pid);
 }
 
+/* Stops the monitor of a syscall for a pid */
 static NTSTATUS stop_monitor(long syscall, HANDLE pid)
 {
     if (!sci_info_contains_pid_syscall(syscall, pid))
@@ -179,6 +192,7 @@ static NTSTATUS stop_monitor(long syscall, HANDLE pid)
     return sci_info_remove_for_pid_syscall(syscall, pid);
 }
 
+/* My Service Handler */
 int my_syscall(int cmd, int syscall_no, HANDLE pid)
 {
     NTSTATUS code = param_validate(cmd, syscall_no, pid);
@@ -209,6 +223,7 @@ int my_syscall(int cmd, int syscall_no, HANDLE pid)
     return code;
 }
 
+/* Creates a shallow copy of the Descriptor Table (back-up purposses) */
 void shallowCopyDescriptorTable(struct std *destination, struct std *source)
 {
     KeAcquireSpinLock(&sci_lock, &sci_irql);
@@ -218,6 +233,8 @@ void shallowCopyDescriptorTable(struct std *destination, struct std *source)
     destination->spt = source->spt;
     KeReleaseSpinLock(&sci_lock, sci_irql);
 }
+
+/* Frees the memory ocupiad by a dinamically allocated Table */
 static void freeDescriptorTableInfo(struct std *table)
 {
     if (table) {
@@ -231,6 +248,10 @@ static void freeDescriptorTableInfo(struct std *table)
     }
 }
 
+/* Alocates memory for my duplicate Descriptor Table
+ * Returns the allocated Table if allocation was successfull
+ * NULL otherwise
+ */
 struct std *allocateDescriptorTableInfo()
 {
     struct std *table;
@@ -255,7 +276,7 @@ struct std *allocateDescriptorTableInfo()
 
     for (i = 0; i < no_syscalls; i++)
         intercepted[i] = 0;
-goto exit;
+    goto exit;
 
 free:
     freeDescriptorTableInfo(table);
@@ -265,6 +286,9 @@ exit:
     return table;
 }
 
+/* Creates a deep copy of the original Descriptor Table and attaches my own
+ * Service Descriptor
+ */
 void deepCopyDescriptoTableInfo(struct std *destination, struct std *source)
 {
     int i = 0;
@@ -280,6 +304,10 @@ void deepCopyDescriptoTableInfo(struct std *destination, struct std *source)
     KeReleaseSpinLock(&sci_lock, sci_irql);
 }
 
+/* Backs-up the original Descriptor Tables
+ * Creates a duplicate one (with bigger size) and attaches my
+ * own Service Descriptor
+ */
 NTSTATUS InitServiceDescriptorTable()
 {
     shallow(&OrigDescriptorTable, &KeServiceDescriptorTable[0]);
@@ -298,6 +326,7 @@ NTSTATUS InitServiceDescriptorTable()
     return STATUS_SUCCESS;
 }
 
+/* Restores the Descriptor Tables to their original values */
 void CleanServiceDescriptorTable()
 {
     WPON();
@@ -308,15 +337,16 @@ void CleanServiceDescriptorTable()
     WPOFF();
 }
 
+/* Eliminates from sci_info the processes that have exited */
 VOID deleteRoutine(HANDLE ppid, HANDLE pid, BOOLEAN create)
 {
     if (create)
         return;
-    else
-        if (!sci_info_remove_for_pid(pid))
-            DbgPrint("Remove from sci_info error\n");
+    else if (!sci_info_remove_for_pid(pid))
+        DbgPrint("Remove from sci_info error\n");
 }
 
+/* Frees the memory and returns system to original state */
 void DriverUnload(PDRIVER_OBJECT driver)
 {
     CleanServiceDescriptorTable();
@@ -327,6 +357,7 @@ void DriverUnload(PDRIVER_OBJECT driver)
     return;
 }
 
+/* Driver Entry point , inits the Descriptor tables and spinlocks */
 NTSTATUS DriverEntry(PDRIVER_OBJECT driver, PUNICODE_STRING registry)
 {
     NTSTATUS status;
@@ -335,7 +366,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT driver, PUNICODE_STRING registry)
     get_shadow();
     sci_info_init();
     KeInitializeSpinLock(&sci_lock);
-    if (status=InitServiceDescriptorTable())
+    if (status = InitServiceDescriptorTable())
         return status;
 
     if (PsSetCreateProcessNotifyRoutine(deleteRoutine, FALSE))
