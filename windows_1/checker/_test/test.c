@@ -199,10 +199,10 @@ int do_phase2(const char *syscall)
 	do_start(syscall, 0, STATUS_ACCESS_DENIED);
 	do_stop(syscall, 0, STATUS_ACCESS_DENIED);
 	do_start(syscall, GetCurrentProcessId(), STATUS_SUCCESS);
-	//do_start(syscall, GetCurrentProcessId(), STATUS_DEVICE_BUSY);
-	//do_monitor(syscall);
-	// do_stop(syscall, GetCurrentProcessId(), STATUS_SUCCESS);
-	// do_stop(syscall, GetCurrentProcessId(), STATUS_INVALID_PARAMETER);
+	do_start(syscall, GetCurrentProcessId(), STATUS_DEVICE_BUSY);
+	do_monitor(syscall);
+	do_stop(syscall, GetCurrentProcessId(), STATUS_SUCCESS);
+	do_stop(syscall, GetCurrentProcessId(), STATUS_INVALID_PARAMETER);
 	return 0;
 }
 
@@ -211,14 +211,14 @@ test_syscall(const char *syscall)
 	clear_log();
 	do_intercept(syscall, STATUS_SUCCESS);
 	do_intercept(syscall, STATUS_DEVICE_BUSY);
-	 do_as_guest("test phase2 %s", syscall, 0);
-	// do_start(syscall, -2, STATUS_INVALID_PARAMETER);
-	// do_start(syscall, 0, STATUS_SUCCESS);
-	// do_stop(syscall, 0, STATUS_SUCCESS);
-	// do_as_guest("test stop %s 0 %d", syscall, STATUS_ACCESS_DENIED);
-	// do_as_guest("test start %s -1 %d", syscall, STATUS_SUCCESS);
-	// do_stop(syscall, last_child, STATUS_INVALID_PARAMETER);
-	// do_release(syscall, STATUS_SUCCESS);
+	do_as_guest("test phase2 %s", syscall, 0);
+	do_start(syscall, -2, STATUS_INVALID_PARAMETER);
+	do_start(syscall, 0, STATUS_SUCCESS);
+	do_stop(syscall, 0, STATUS_SUCCESS);
+	do_as_guest("test stop %s 0 %d", syscall, STATUS_ACCESS_DENIED);
+	do_as_guest("test start %s -1 %d", syscall, STATUS_SUCCESS);
+	do_stop(syscall, last_child, STATUS_INVALID_PARAMETER);
+	do_release(syscall, STATUS_SUCCESS);
 }
 
 
@@ -262,15 +262,15 @@ int main(int argc, char **argv)
 
 	system("driver load objchk_wnet_x86/i386/sci.sys");
 
-	// test("bad MY_SYSCALL args", NULL, vsyscall(MY_SYSCALL_NO, 3, 100, 0, 0) == STATUS_INVALID_PARAMETER);
-	// test("MY_SYSCALL_NO intercept", NULL, vsyscall(MY_SYSCALL_NO, 3, REQUEST_SYSCALL_INTERCEPT, MY_SYSCALL_NO, 0) == STATUS_INVALID_PARAMETER);
-	// test("MY_SYSCALL_NO release", NULL, vsyscall(MY_SYSCALL_NO, 3, REQUEST_SYSCALL_RELEASE, MY_SYSCALL_NO, 0) == STATUS_INVALID_PARAMETER);
+	test("bad MY_SYSCALL args", NULL, vsyscall(MY_SYSCALL_NO, 3, 100, 0, 0) == STATUS_INVALID_PARAMETER);
+	test("MY_SYSCALL_NO intercept", NULL, vsyscall(MY_SYSCALL_NO, 3, REQUEST_SYSCALL_INTERCEPT, MY_SYSCALL_NO, 0) == STATUS_INVALID_PARAMETER);
+	test("MY_SYSCALL_NO release", NULL, vsyscall(MY_SYSCALL_NO, 3, REQUEST_SYSCALL_RELEASE, MY_SYSCALL_NO, 0) == STATUS_INVALID_PARAMETER);
 
 	test_syscall("NtOpenMutant");
-	// test_syscall("NtReleaseMutant");
-	// test_syscall("NtOpenFile");
-	// test_syscall("NtReadFile");
-	// test_syscall("NtClose");
+	test_syscall("NtReleaseMutant");
+	test_syscall("NtOpenFile");
+	test_syscall("NtReadFile");
+	test_syscall("NtClose");
 
 	system("driver unload sci");
 
