@@ -1,32 +1,25 @@
-/*
- * SO2 Lab 3 - task 3
- */
-
 #include <ntddk.h>
-
 #include "sci_list.h"
- 
-SINGLE_LIST_ENTRY head;// = { NULL };
+
+SINGLE_LIST_ENTRY head;
 
 void sci_info_init(void)
 {
     head.Next = NULL;
 }
- 
-NTSTATUS sci_info_add(int syscall, HANDLE pid) 
+
+NTSTATUS sci_info_add(int syscall, HANDLE pid)
 {
     struct sci_info *si;
 
-
     if (sci_info_contains_pid_syscall(syscall, pid)) {
-        DbgPrint("Already in\n");
         return STATUS_SUCCESS;
     }
 
     if (pid == NULL)
         sci_info_remove_for_syscall(syscall);
 
-    if (!(si = ExAllocatePoolWithTag(NonPagedPool, sizeof(*si), MEM_TAG )))
+    if (!(si = ExAllocatePoolWithTag(NonPagedPool, sizeof(*si), MTAG)))
         return STATUS_NO_MEMORY;
 
     si->syscall = syscall;
@@ -36,7 +29,7 @@ NTSTATUS sci_info_add(int syscall, HANDLE pid)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS sci_info_remove_for_pid (HANDLE pid)
+NTSTATUS sci_info_remove_for_pid(HANDLE pid)
 {
     SINGLE_LIST_ENTRY *current, *prev;
     struct sci_info *si = NULL;
@@ -44,7 +37,7 @@ NTSTATUS sci_info_remove_for_pid (HANDLE pid)
     prev = &head;
     current = head.Next;
 
-    while(current != NULL){
+    while (current != NULL) {
         si = CONTAINING_RECORD(current, struct sci_info, list);
         if (si->pid == pid) {
             PopEntryList(prev);
@@ -54,9 +47,9 @@ NTSTATUS sci_info_remove_for_pid (HANDLE pid)
         prev = current;
         current = current->Next;
     }
- 
+
     if (ret == STATUS_SUCCESS)
-        ExFreePoolWithTag(si, MEM_TAG);
+        ExFreePoolWithTag(si, MTAG);
 
     return ret;
 }
@@ -69,7 +62,7 @@ NTSTATUS sci_info_remove_for_syscall(int syscall)
     prev = &head;
     current = head.Next;
 
-    while(current != NULL){
+    while (current != NULL) {
         si = CONTAINING_RECORD(current, struct sci_info, list);
         if (si->syscall == syscall) {
             PopEntryList(prev);
@@ -79,9 +72,9 @@ NTSTATUS sci_info_remove_for_syscall(int syscall)
         prev = current;
         current = current->Next;
     }
- 
+
     if (ret == STATUS_SUCCESS)
-        ExFreePoolWithTag(si, MEM_TAG);
+        ExFreePoolWithTag(si, MTAG);
 
     return ret;
 }
@@ -95,9 +88,7 @@ NTSTATUS sci_info_remove_for_pid_syscall(int syscall, HANDLE pid)
     prev = &head;
     current = head.Next;
 
-    
-
-    while(current != NULL){
+    while (current != NULL) {
         si = CONTAINING_RECORD(current, struct sci_info, list);
         valid_pid = si->pid == pid || si->pid == NULL;
         valid_syscall = si->syscall == syscall;
@@ -112,8 +103,8 @@ NTSTATUS sci_info_remove_for_pid_syscall(int syscall, HANDLE pid)
     }
 
     if (ret == STATUS_SUCCESS)
-        ExFreePoolWithTag(si, MEM_TAG);
- 
+        ExFreePoolWithTag(si, MTAG);
+
     return FALSE;
 }
 
@@ -125,9 +116,7 @@ BOOLEAN sci_info_contains_pid_syscall(int syscall, HANDLE pid)
     int valid_pid, valid_syscall;
     current = head.Next;
 
-        
-
-    while(current != NULL){
+    while (current != NULL) {
         si = CONTAINING_RECORD(current, struct sci_info, list);
         valid_pid = si->pid == pid || si->pid == 0;
         valid_syscall = si->syscall == syscall;
@@ -146,17 +135,17 @@ void destroy_list(void)
     SINGLE_LIST_ENTRY *current, *next;
     struct sci_info *si = NULL;
     next = NULL;
- 
+
     for (current = head.Next; current != NULL; current = next) {
         si = CONTAINING_RECORD(current, struct sci_info, list);
         next = current->Next;
- 
+
         PopEntryList(&head);
-        ExFreePoolWithTag(si, MEM_TAG);
+        ExFreePoolWithTag(si, MTAG);
     }
 }
 
-void print_list(void)
+static void print_list(void)
 {
     int val;
     struct sci_info *entry ;
@@ -165,7 +154,6 @@ void print_list(void)
     while (current != NULL) {
         entry = CONTAINING_RECORD(current, struct sci_info, list);
         val = *((int *) entry->pid);
-        DbgPrint("-- popped value %d\n",  val);
         current = current->Next;
     }
 }

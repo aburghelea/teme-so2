@@ -1,7 +1,7 @@
 #ifndef _SCI_LIST_H
 #define _SCI_LIST_H
 
-#define MEM_TAG 'ruba'
+#define MTAG 'ruba'
 
 struct sci_info
 {

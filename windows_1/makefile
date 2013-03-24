@@ -3,8 +3,8 @@
 !else
 
 DDK=C:\WinDDK\7600.16385.0
-kbuild: 
-	-del $(DDK)\build.dat  
+kbuild:
+	-del $(DDK)\build.dat
 	pushd . & $(DDK)\bin\setenv.bat $(DDK) chk wnet & @echo on & popd & build -cZ
 
 !endif
