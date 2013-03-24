@@ -302,6 +302,7 @@ void DriverUnload(PDRIVER_OBJECT driver)
 {
     CleanServiceDescriptorTable();
     freeDescriptorTableInfo(CurrentDescriptorTable);
+    sci_info_destroy();
     PsSetCreateProcessNotifyRoutine(deleteRoutine, TRUE);
 
     return;
@@ -313,6 +314,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT driver, PUNICODE_STRING registry)
     driver->DriverUnload = DriverUnload;
     gdriver = driver;
     get_shadow();
+    sci_info_init();
 
     if (status=InitServiceDescriptorTable())
         return status;

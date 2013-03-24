@@ -23,8 +23,6 @@ NTSTATUS sci_info_remove_for_pid_syscall(int syscall, HANDLE pid);
 
 BOOLEAN sci_info_contains_pid_syscall(int syscall, HANDLE pid);
 
-void destroy_list(void);
-
-void print_list(void);
+void sci_info_destroy(void);
 
 #endif
