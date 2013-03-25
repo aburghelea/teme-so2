@@ -1,0 +1,28 @@
+[SO2] TEMA 1 - LINUX
+Burghelea Alexandru George
+342C5
+Martie 2013
+
+Am rezolvat tema facand shallow-copy la KeServiceDescriptorTable[0](+ Shadow)
+Am allocat un no ServiceDescriptor table cu vectori de dimensiune
+MY_SYSCALL_NO + 1. Si am inregistrat apelul meu. Pentru a vedea ce apeluri sunt
+deja interceptate am folosit un vector de caractere care e setat pe 0 daca nu
+a fost interceptat acel apel. La refacerea tabelei de sitem fac shallow-copy
+din back-upri pe KeServiceDescriptorTable.
+
+Cand este interceptat un apel de sistem, verific daca este(alaturi de pid-ul
+procesului curent) in lista pid-syscall. In caz afirmativ il loghez.
+
+Pentru a elimina procesele care s-au terminat am inregistrat un hook si daca
+parametru create este fals, atunci sterg intrarile cu pid-ul procesului curent
+din lista.
+
+Sincronizarea este facuta cu dowa spin lock_uri unul pentru lista si unul pentru
+Descriptor Table si vectorul de apeluri interceptate.
+
+FEEDBACK: Tema a fost interesata, in schimb enuntul nu mi se pare
+prea bine structurat, a trebui sa ma uit in teste ca sa vad in ce ordine
+se testeaza codurile de eroare. (same as on Linux)
+
+FEEDBACK: E dea dreptul malefica prima tema pe windows. Poate ar trebui incepute
+laboratoarele cu exercitiile de pe windows (sau sa fie mai putine pe linux).

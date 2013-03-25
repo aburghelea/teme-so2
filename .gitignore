@@ -4,6 +4,8 @@
 *.symvers
 *.order
 *.mod.c
+objchk*
+*.obj
 
 # Compiled Object files
 *.slo
