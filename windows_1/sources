@@ -1,0 +1,6 @@
+TARGETNAME=sci
+TARGETPATH=obj
+TARGETTYPE=DRIVER
+
+SOURCES=sci_list.c sci_interceptor.c
+
