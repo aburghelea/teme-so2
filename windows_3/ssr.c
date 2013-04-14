@@ -10,11 +10,30 @@
 #include "crc32.h"
 
 typedef struct _SSR_DEVICE_DATA {
-	PDEVICE_OBJECT DeviceObject;
-	// char buffer[BUFFER_SIZE];
-	ULONG bufferSize;
+	PDEVICE_OBJECT deviceObject;
+	PFILE_OBJECT mainFileObject;
+	PFILE_OBJECT backUpFileObject;
 	KEVENT event;
 } SSR_DEVICE_DATA, *PSSR_DEVICE_DATA;
+
+
+SSR_DEVICE_DATA data;
+
+static NTSTATUS OpenPhysicalDisk(PCWSTR diskName, SSR_DEVICE_DATA *dev)
+{
+	UNICODE_STRING diskDeviceName;
+	RtlInitUnicodeString(&diskDeviceName, diskName);
+	return IoGetDeviceObjectPointer(
+			&diskDeviceName,
+			GENERIC_READ | GENERIC_WRITE,
+			&dev->mainFileObject,
+			&dev->deviceObject);
+}
+
+static void ClosePhysicalDisk(SSR_DEVICE_DATA *dev)
+{
+	ObDereferenceObject(dev->mainFileObject);
+}
 
 /* Frees the memory and returns system to original state */
 void DriverUnload ( PDRIVER_OBJECT driver )
@@ -28,13 +47,14 @@ void DriverUnload ( PDRIVER_OBJECT driver )
 	DbgPrint("[DriverUnload] SymbolicLink deleted");
 
 	while (TRUE) {
-		device = driver->DeviceObject;
+		device = driver->deviceObject;
 		if (device == NULL)
 			break;
 		IoDeleteDevice(device);
 		DbgPrint("[DriverUnload] Device deleting");
 	}
 
+	ClosePhysicalDisk(&data);
 	DbgPrint("[DriverUnload] Device deleted");
     return;
 }
@@ -45,6 +65,7 @@ NTSTATUS DriverEntry ( PDRIVER_OBJECT driver, PUNICODE_STRING registry )
 	NTSTATUS status;
 	UNICODE_STRING devUnicodeName, linkUnicodeName;
 	DEVICE_OBJECT *device;
+
 
     RtlZeroMemory ( &devUnicodeName, sizeof ( devUnicodeName ) );
     RtlZeroMemory ( &linkUnicodeName, sizeof ( linkUnicodeName ) );
@@ -61,7 +82,6 @@ NTSTATUS DriverEntry ( PDRIVER_OBJECT driver, PUNICODE_STRING registry )
 		&device
 		);
 	if (status != STATUS_SUCCESS) {
-
 		goto error;
 	}
 
@@ -71,8 +91,15 @@ NTSTATUS DriverEntry ( PDRIVER_OBJECT driver, PUNICODE_STRING registry )
 
     driver->DriverUnload = DriverUnload;
     device->Flags |= DO_DIRECT_IO;
-    data = (SSR_DEVICE_DATA *) device->DeviceExtension;
-	data->DeviceObject = device;
+    // data = (SSR_DEVICE_DATA *) device->DeviceExtension;
+	data.deviceObject = device;
+
+	status = OpenPhysicalDisk(PHYSICAL_DISK1_DEVICE_NAME, &data);
+	if (status != STATUS_SUCCESS) {
+		DbgPrint("[DriverEntry] Error opening physical disk\n");
+		goto error;
+	}
+
 
     DbgPrint("[DriverEntry] Exit success");
 	return STATUS_SUCCESS;
@@ -81,3 +108,5 @@ error:
 
     return status;
 }
+
+
