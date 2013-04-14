@@ -21,15 +21,21 @@ void DriverUnload ( PDRIVER_OBJECT driver )
 {
 
 	DEVICE_OBJECT *device;
+	UNICODE_STRING linkUnicodeName;
+    RtlZeroMemory ( &linkUnicodeName, sizeof ( linkUnicodeName ) );
+	RtlInitUnicodeString ( &linkUnicodeName, LOGICAL_DISK_LINK_NAME );
+	IoDeleteSymbolicLink(&linkUnicodeName);
+	DbgPrint("[DriverUnload] SymbolicLink deleted");
 
 	while (TRUE) {
 		device = driver->DeviceObject;
 		if (device == NULL)
 			break;
 		IoDeleteDevice(device);
+		DbgPrint("[DriverUnload] Device deleting");
 	}
 
-
+	DbgPrint("[DriverUnload] Device deleted");
     return;
 }
 
@@ -40,10 +46,10 @@ NTSTATUS DriverEntry ( PDRIVER_OBJECT driver, PUNICODE_STRING registry )
 	UNICODE_STRING devUnicodeName, linkUnicodeName;
 	DEVICE_OBJECT *device;
 
-	RtlZeroMemory(&devUnicodeName, sizeof(devUnicodeName));
-	RtlZeroMemory(&linkUnicodeName, sizeof(linkUnicodeName));
-	RtlInitUnicodeString(&devUnicodeName,LOGICAL_DISK_DEVICE_NAME);
-	RtlInitUnicodeString(&linkUnicodeName,LOGICAL_DISK_LINK_NAME);
+    RtlZeroMemory ( &devUnicodeName, sizeof ( devUnicodeName ) );
+    RtlZeroMemory ( &linkUnicodeName, sizeof ( linkUnicodeName ) );
+    RtlInitUnicodeString ( &devUnicodeName, LOGICAL_DISK_DEVICE_NAME );
+    RtlInitUnicodeString ( &linkUnicodeName, LOGICAL_DISK_LINK_NAME );
 
 
 	status = IoCreateDevice(driver,
@@ -59,8 +65,16 @@ NTSTATUS DriverEntry ( PDRIVER_OBJECT driver, PUNICODE_STRING registry )
 		goto error;
 	}
 
-    driver->DriverUnload = DriverUnload;
+    status = IoCreateSymbolicLink ( &linkUnicodeName, &devUnicodeName );
+	if (status != STATUS_SUCCESS)
+		goto error;
 
+    driver->DriverUnload = DriverUnload;
+    device->Flags |= DO_DIRECT_IO;
+    data = (SSR_DEVICE_DATA *) device->DeviceExtension;
+	data->DeviceObject = device;
+
+    DbgPrint("[DriverEntry] Exit success");
 	return STATUS_SUCCESS;
 error:
 	DbgPrint("[DriverEntry] Force kill");
