@@ -11,28 +11,42 @@
 
 typedef struct _SSR_DEVICE_DATA {
 	PDEVICE_OBJECT deviceObject;
+
+	PDEVICE_OBJECT mainPhysicalDeviceObject;
+	PDEVICE_OBJECT backUpPhysicalDeviceObject;
+
 	PFILE_OBJECT mainFileObject;
 	PFILE_OBJECT backUpFileObject;
 	KEVENT event;
 } SSR_DEVICE_DATA, *PSSR_DEVICE_DATA;
 
 
-SSR_DEVICE_DATA data;
+
 
 static NTSTATUS OpenPhysicalDisk(PCWSTR diskName, SSR_DEVICE_DATA *dev)
 {
 	UNICODE_STRING diskDeviceName;
+	NTSTATUS mainStatus, backUpStatus;
 	RtlInitUnicodeString(&diskDeviceName, diskName);
-	return IoGetDeviceObjectPointer(
+	mainStatus = IoGetDeviceObjectPointer(
 			&diskDeviceName,
 			GENERIC_READ | GENERIC_WRITE,
 			&dev->mainFileObject,
-			&dev->deviceObject);
+			&dev->mainPhysicalDeviceObject);
+
+	backUpStatus = IoGetDeviceObjectPointer(
+			&diskDeviceName,
+			GENERIC_READ | GENERIC_WRITE,
+			&dev->backUpFileObject,
+			&dev->backUpPhysicalDeviceObject);
+	return mainStatus && backUpStatus;
 }
 
 static void ClosePhysicalDisk(SSR_DEVICE_DATA *dev)
 {
 	ObDereferenceObject(dev->mainFileObject);
+	ObDereferenceObject(dev->backUpFileObject);
+	DbgPrint("[DriverUnload] DisksDeleting deleting");
 }
 
 /* Frees the memory and returns system to original state */
@@ -47,14 +61,14 @@ void DriverUnload ( PDRIVER_OBJECT driver )
 	DbgPrint("[DriverUnload] SymbolicLink deleted");
 
 	while (TRUE) {
-		device = driver->deviceObject;
+		device = driver->DeviceObject;
 		if (device == NULL)
 			break;
+		ClosePhysicalDisk((SSR_DEVICE_DATA *) driver->DeviceObject->DeviceExtension);
 		IoDeleteDevice(device);
 		DbgPrint("[DriverUnload] Device deleting");
 	}
 
-	ClosePhysicalDisk(&data);
 	DbgPrint("[DriverUnload] Device deleted");
     return;
 }
@@ -65,7 +79,7 @@ NTSTATUS DriverEntry ( PDRIVER_OBJECT driver, PUNICODE_STRING registry )
 	NTSTATUS status;
 	UNICODE_STRING devUnicodeName, linkUnicodeName;
 	DEVICE_OBJECT *device;
-
+	SSR_DEVICE_DATA *data;
 
     RtlZeroMemory ( &devUnicodeName, sizeof ( devUnicodeName ) );
     RtlZeroMemory ( &linkUnicodeName, sizeof ( linkUnicodeName ) );
@@ -91,10 +105,10 @@ NTSTATUS DriverEntry ( PDRIVER_OBJECT driver, PUNICODE_STRING registry )
 
     driver->DriverUnload = DriverUnload;
     device->Flags |= DO_DIRECT_IO;
-    // data = (SSR_DEVICE_DATA *) device->DeviceExtension;
-	data.deviceObject = device;
+    data = (SSR_DEVICE_DATA *) device->DeviceExtension;
+	data->deviceObject = device;
 
-	status = OpenPhysicalDisk(PHYSICAL_DISK1_DEVICE_NAME, &data);
+	status = OpenPhysicalDisk(PHYSICAL_DISK1_DEVICE_NAME, data);
 	if (status != STATUS_SUCCESS) {
 		DbgPrint("[DriverEntry] Error opening physical disk\n");
 		goto error;
