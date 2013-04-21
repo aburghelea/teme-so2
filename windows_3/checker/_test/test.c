@@ -33,7 +33,7 @@
 
 #define CRC_SIZE		4
 
-#define NUM_SUBTESTS		5
+#define NUM_SUBTESTS		1
 
 #define BASIC_MOD_PATH		"objchk_wnet_x86\\i386"
 #define SSR_BASE_NAME		"ssr"
@@ -176,7 +176,7 @@ static inline void ssr_test_open_nocheck(void)
 			LOGICAL_DISK_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL, 
+			NULL,
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -185,7 +185,7 @@ static inline void ssr_test_open_nocheck(void)
 			PHYSICAL_DISK1_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL, 
+			NULL,
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -194,7 +194,7 @@ static inline void ssr_test_open_nocheck(void)
 			PHYSICAL_DISK2_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL, 
+			NULL,
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -214,7 +214,7 @@ static inline void ssr_test_open(void)
 			LOGICAL_DISK_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL, 
+			NULL,
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -223,7 +223,7 @@ static inline void ssr_test_open(void)
 			PHYSICAL_DISK1_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL, 
+			NULL,
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -232,7 +232,7 @@ static inline void ssr_test_open(void)
 			PHYSICAL_DISK2_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL, 
+			NULL,
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -299,20 +299,20 @@ static inline size_t ssr_write_log_sectors(HANDLE fd,
 static inline size_t ssr_read_phys_sector(HANDLE fd,
 		void *buffer, size_t sector)
 {
-	unsigned int crc_comp, crc_read;
+	unsigned long crc_comp, crc_read;
 	size_t n;
 
 	SetFilePointer(fd, sector * SECTOR_SIZE, NULL, FILE_BEGIN);
 	n = xread(fd, buffer, SECTOR_SIZE);
 	crc_comp = update_crc(0, (unsigned char *) buffer, SECTOR_SIZE);
-
+	Dprintf("CRC ASTEPTAT %lu\n", crc_comp);
 	/* adjust offset for sector alignment */
 	SetFilePointer(fd, ssr_get_crc_sector(sector), NULL, FILE_BEGIN);
 	n += xread(fd, crc_buffer, SECTOR_SIZE);
 
 	crc_read = * (unsigned int *) (crc_buffer +
 			ssr_get_crc_offset_in_sector(sector));
-
+	Dprintf("CRC PRIMIT %lu\n", crc_read);
 	test("crc check", crc_read == crc_comp);
 
 	return n;
@@ -682,7 +682,7 @@ int main(void)
 	printf("\nTEST OPS\n\n");
 	ssr_test_ops();
 	printf("\nTEST MIRROR\n\n");
-	// ssr_test_mirror();
+	ssr_test_mirror();
 	printf("\nTEST RECOVERY\n\n");
 	// ssr_test_recovery();
 	printf("\nTEST OUT OF BOUNDS\n\n");
