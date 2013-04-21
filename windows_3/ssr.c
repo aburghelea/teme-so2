@@ -19,7 +19,9 @@ typedef struct _SSR_DEVICE_DATA {
 	PFILE_OBJECT backUpFileObject;
 	KEVENT event;
 
-	char buffer[256];
+	IO_STATUS_BLOCK ioStatus;
+
+	char buffer[2560];
 	ULONG bufferSize;
 
 } SSR_DEVICE_DATA, *PSSR_DEVICE_DATA;
@@ -113,21 +115,71 @@ NTSTATUS SSRRead(PDEVICE_OBJECT device, IRP *irp)
 	sizeRead = (sizeToRead < data->bufferSize) ? sizeToRead : data->bufferSize;
 
 
-	DbgPrint("[SSRRead] DIRECT I/O\n");
-	readBuffer = MmGetSystemAddressForMdlSafe(irp->MdlAddress,
-			NormalPagePriority);
-	RtlCopyMemory(readBuffer, data->buffer, sizeRead);
+	// DbgPrint("[SSRRead] DIRECT I/O\n");
+	// readBuffer = MmGetSystemAddressForMdlSafe(irp->MdlAddress,
+	// 		NormalPagePriority);
+	// RtlCopyMemory(readBuffer, data->buffer, sizeRead);
 
-	DbgPrint("[SSRRead] Read buffer \"%s\" of %d bytes\n",
-			data->buffer,
-			sizeRead);
+	// DbgPrint("[SSRRead] Read buffer \"%s\" of %d bytes\n",
+	// 		data->buffer,
+	// 		sizeRead);
 
 	/* complete IRP */
 	irp->IoStatus.Status = STATUS_SUCCESS;
-	irp->IoStatus.Information = sizeRead;
+	irp->IoStatus.Information = sizeToRead;
 	IoCompleteRequest(irp, IO_NO_INCREMENT);
 
 	return STATUS_SUCCESS;
+}
+
+static NTSTATUS SendTestIrp(SSR_DEVICE_DATA *dev, ULONG major)
+{
+	PIRP irp = NULL;
+	KEVENT irpEvent;
+	NTSTATUS status = STATUS_SUCCESS;
+	LARGE_INTEGER offset;
+	CHAR buffer[1000000];
+	int NR_SECTORS =1, SECTOR_SIZE = 512;
+	/* compiler has support for 64-bit integers */
+	offset.QuadPart = 0;
+
+	KeInitializeEvent(
+			&irpEvent,
+			NotificationEvent,
+			FALSE);
+
+	if (major == IRP_MJ_WRITE)
+		RtlCopyMemory(buffer, IRP_WRITE_MESSAGE, strlen(IRP_WRITE_MESSAGE));
+
+	irp = IoBuildSynchronousFsdRequest(
+			major,
+			dev->mainPhysicalDeviceObject,
+			buffer,
+			NR_SECTORS  * SECTOR_SIZE,
+			&offset,
+			&irpEvent,
+			&dev->ioStatus);
+	if (irp == NULL)  {
+		status = STATUS_INSUFFICIENT_RESOURCES;
+		return status;
+	}
+
+	status = IoCallDriver(
+			dev->mainPhysicalDeviceObject,
+			irp);
+
+	KeWaitForSingleObject(
+			&irpEvent,
+			Executive,
+			KernelMode,
+			FALSE,
+			NULL);
+	status = dev->ioStatus.Status;
+
+	DbgPrint("[SendTestIrp] buffer is %02x %02x %02x\n",
+			buffer[0], buffer[1], buffer[2]);
+
+	return status;
 }
 
 NTSTATUS SSRWrite(PDEVICE_OBJECT device, IRP *irp)
@@ -140,8 +192,8 @@ NTSTATUS SSRWrite(PDEVICE_OBJECT device, IRP *irp)
 	DbgPrint("[SSRWrite] DIRECT I/O\n");
 	pIrpStack = IoGetCurrentIrpStackLocation(irp);
 	sizeToWrite = pIrpStack->Parameters.Write.Length;
-	sizeWritten = (sizeToWrite <= 256) ? sizeToWrite : 256-1;
-	RtlZeroMemory(data->buffer, 256);
+	sizeWritten = sizeToWrite;
+	RtlZeroMemory(data->buffer, 2650);
 	data->bufferSize = 0;
 
 
@@ -203,12 +255,12 @@ void DriverUnload ( PDRIVER_OBJECT driver )
 	RtlInitUnicodeString ( &linkUnicodeName, LOGICAL_DISK_LINK_NAME );
 	IoDeleteSymbolicLink(&linkUnicodeName);
 	DbgPrint("[DriverUnload] SymbolicLink deleted");
-
+	ClosePhysicalDisk((SSR_DEVICE_DATA *) driver->DeviceObject->DeviceExtension);
 	while (TRUE) {
 		device = driver->DeviceObject;
 		if (device == NULL)
 			break;
-		ClosePhysicalDisk((SSR_DEVICE_DATA *) driver->DeviceObject->DeviceExtension);
+
 		IoDeleteDevice(device);
 		DbgPrint("[DriverUnload] Device deleting");
 	}
@@ -254,11 +306,11 @@ NTSTATUS DriverEntry ( PDRIVER_OBJECT driver, PUNICODE_STRING registry )
 	data->deviceObject = device;
 
 	driver->DriverUnload = DriverUnload;
-	driver->MajorFunction[ IRP_MJ_CREATE ] = SSROpen;
+	// driver->MajorFunction[ IRP_MJ_CREATE ] = SSROpen;
 	driver->MajorFunction[ IRP_MJ_READ ] = SSRRead;
 	driver->MajorFunction[ IRP_MJ_WRITE ] = SSRWrite;
-	driver->MajorFunction[ IRP_MJ_CLOSE ] = SSRClose;
-	driver->MajorFunction[ IRP_MJ_DEVICE_CONTROL ] = SSRDeviceIoControl;
+	// driver->MajorFunction[ IRP_MJ_CLOSE ] = SSRClose;
+	// driver->MajorFunction[ IRP_MJ_DEVICE_CONTROL ] = SSRDeviceIoControl;
 
 
 	status = OpenPhysicalDisk(PHYSICAL_DISK1_DEVICE_NAME, data);
