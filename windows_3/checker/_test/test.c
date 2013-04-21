@@ -17,7 +17,7 @@
 
 #define inline
 
-#define INTERNAL_TESTING	0
+#define INTERNAL_TESTING	1
 
 #define DEBUG			0
 #if DEBUG == 1
@@ -40,6 +40,11 @@
 #define SSR_WIN_EXT		".sys"
 #define SSR_MOD_NAME		SSR_BASE_NAME SSR_WIN_EXT
 #define SSR_MOD_PATH		BASIC_MOD_PATH "\\" SSR_MOD_NAME
+
+#define dprintf(format, ...)                        \
+    fprintf(stdout, " [%s(), %s:%u] " format ,      \
+            __FUNCTION__, __FILE__, __LINE__,       \
+            ##__VA_ARGS__)
 
 
 static void test(const char *msg, int test_val)
@@ -143,11 +148,32 @@ static inline size_t xread(HANDLE fd, void *buffer, size_t len)
 /*
  * "upgraded" write routine
  */
+static void WinPerror(const char *message)
+{
+	CHAR *errBuffer;
+
+	if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+			FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL,
+			GetLastError(),
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			(CHAR *) &errBuffer,
+			0,
+			NULL) == 0) {
+		fprintf(stderr, "FormatMessage failed with %d\n", GetLastError());
+		return;
+	}
+
+	fprintf(stderr, "%s) %s\n",message, errBuffer);
+}
+
 
 static inline size_t xwrite(HANDLE fd, void *buffer, size_t len)
 {
 	BOOL ret;
-	DWORD bytesWritten;
+	DWORD bytesWritten, dw;
+	LPWSTR lpMsgBuf = NULL;
 	size_t n;
 
 	n = 0;
@@ -158,9 +184,15 @@ static inline size_t xwrite(HANDLE fd, void *buffer, size_t len)
 				len - n,
 				&bytesWritten,
 				NULL);
+		dprintf("ret is %d | %ld | %ld | %ld | %p | %c | %d, %d\n", 
+			ret, bytesWritten, n, len, fd, ((char *) buffer)[n], len - n);
 		if (ret != TRUE) {
 			fprintf(stderr, "error code is %d\n", GetLastError());
+			WinPerror("Abur xwrite");
+
 		}
+
+
 		assert(ret == TRUE);
 		if (bytesWritten == 0)
 			break;
@@ -237,6 +269,7 @@ static inline void ssr_test_open(void)
 			0,
 			NULL);
 	assert(phys_fd2 != INVALID_HANDLE_VALUE);
+	dprintf("Ended srsOpen\n");
 }
 
 static inline void ssr_test_close(void)
@@ -456,6 +489,7 @@ static void ssr_test_ops(void)
 
 		SetFilePointer(log_fd, rand_sect[i] * SECTOR_SIZE,
 				NULL, FILE_BEGIN);
+		dprintf("Trying simple write\n");
 		test("simple write", xwrite(log_fd, phys_buffer1, SECTOR_SIZE) == SECTOR_SIZE);
 
 		ssr_test_close_nocheck();
