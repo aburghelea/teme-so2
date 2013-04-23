@@ -19,7 +19,7 @@
 
 #define INTERNAL_TESTING	0
 
-#define DEBUG			1
+#define DEBUG			0
 #if DEBUG == 1
 #define Dprintf(format, ...)	\
 	fprintf(stderr, "[DEBUG] %d: " format, __LINE__, __VA_ARGS__)
@@ -309,6 +309,7 @@ static inline size_t ssr_read_phys_sector(HANDLE fd,
 	/* adjust offset for sector alignment */
 	SetFilePointer(fd, ssr_get_crc_sector(sector), NULL, FILE_BEGIN);
 	n += xread(fd, crc_buffer, SECTOR_SIZE);
+
 	crc_read = * (unsigned int *) (crc_buffer +
 			ssr_get_crc_offset_in_sector(sector));
 
@@ -391,7 +392,7 @@ again:
 
 	ssr_test_close_nocheck();
 	ssr_test_open_nocheck();
-	printf("--------------------------------------------------------------------------------\n");
+
 	for (i = 0; i < num_sectors; i++) {
 		/* read data from physical devices */
 		n = ssr_read_phys_sector(phys_fd1, phys_buffer1, start_sector + i);
@@ -487,8 +488,8 @@ static void ssr_test_mirror(void)
 
 	for (i = 0; i < NUM_SUBTESTS; i++)
 		ssr_test_writes(start_sector_v[i], NUM_SUBTESTS);
-	// for (i = 0; i < NUM_SUBTESTS; i++)
-		// ssr_test_reads(start_sector_v[i], NUM_SUBTESTS);
+	for (i = 0; i < NUM_SUBTESTS; i++)
+		ssr_test_reads(start_sector_v[i], NUM_SUBTESTS);
 
 	ssr_test_close();
 }
@@ -679,11 +680,11 @@ int main(void)
 	ssr_test_insmod();
 
 	printf("\nTEST OPS\n\n");
-	// ssr_test_ops();
+	ssr_test_ops();
 	printf("\nTEST MIRROR\n\n");
 	ssr_test_mirror();
 	printf("\nTEST RECOVERY\n\n");
-	// ssr_test_recovery();
+	ssr_test_recovery();
 	printf("\nTEST OUT OF BOUNDS\n\n");
 	// ssr_test_out_of_bounds();
 
