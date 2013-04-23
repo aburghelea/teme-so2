@@ -17,9 +17,9 @@
 
 #define inline
 
-#define INTERNAL_TESTING	1
+#define INTERNAL_TESTING	0
 
-#define DEBUG			0
+#define DEBUG			1
 #if DEBUG == 1
 #define Dprintf(format, ...)	\
 	fprintf(stderr, "[DEBUG] %d: " format, __LINE__, __VA_ARGS__)
@@ -311,6 +311,7 @@ static inline size_t ssr_read_phys_sector(HANDLE fd,
 	n += xread(fd, crc_buffer, SECTOR_SIZE);
 	crc_read = * (unsigned int *) (crc_buffer +
 			ssr_get_crc_offset_in_sector(sector));
+
 	test("crc check", crc_read == crc_comp);
 
 	return n;
@@ -394,11 +395,11 @@ again:
 	for (i = 0; i < num_sectors; i++) {
 		/* read data from physical devices */
 		n = ssr_read_phys_sector(phys_fd1, phys_buffer1, start_sector + i);
-		// n = ssr_read_phys_sector(phys_fd2, phys_buffer2, start_sector + i);
+		n = ssr_read_phys_sector(phys_fd2, phys_buffer2, start_sector + i);
 
 		/* compare data */
-		// test("test write1", memcmp(log_buffer + i * SECTOR_SIZE, phys_buffer1, SECTOR_SIZE) == 0);
-		// test("test write2", memcmp(log_buffer + i * SECTOR_SIZE, phys_buffer2, SECTOR_SIZE) == 0);
+		test("test write1", memcmp(log_buffer + i * SECTOR_SIZE, phys_buffer1, SECTOR_SIZE) == 0);
+		test("test write2", memcmp(log_buffer + i * SECTOR_SIZE, phys_buffer2, SECTOR_SIZE) == 0);
 	}
 
 	count++;

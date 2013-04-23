@@ -82,7 +82,7 @@ static void ClosePhysicalDisk ( SSR_DEVICE_DATA *dev )
 
 static NTSTATUS SendIrp (ULONG major, PDEVICE_OBJECT device, 
                          LARGE_INTEGER offset,PVOID buffer, 
-                         ULONG size, BOOLEAN CRC)
+                         ULONG size)
 {
     PIRP irp = NULL;
     KEVENT irpEvent;
@@ -130,61 +130,53 @@ static NTSTATUS SendTestIrp ( SSR_DEVICE_DATA *dev, ULONG major )
     LARGE_INTEGER dupOffset;
     LONGLONG i = 0;
     unsigned char CRC_BUFFER[SECTOR_SIZE];
+    unsigned int CRC;
     LONGLONG sector_disk_offset;
     sector_disk_offset = dev->byteOffset.QuadPart / SECTOR_SIZE;
 
 
-    DbgPrint("----------- ");
     if (major == IRP_MJ_WRITE) {
-        initialOffset.QuadPart=ssr_get_crc_sector(dev->byteOffset.QuadPart
-            / SECTOR_SIZE);
-        dupOffset.QuadPart = initialOffset.QuadPart;
-        RtlZeroMemory(dev->CRC_BUFFER, SECTOR_SIZE);
-        for (i = 0 ; i < dev->bufferSize; i+= SECTOR_SIZE){
 
+        for (i = 0 ; i < dev->bufferSize; i+= SECTOR_SIZE){
+            initialOffset.QuadPart=ssr_get_crc_sector(sector_disk_offset + i / SECTOR_SIZE);
             offset_in_sector = ssr_get_crc_offset_in_sector(
-                        dev->byteOffset.QuadPart/ SECTOR_SIZE + 
-                        i / SECTOR_SIZE
+                        sector_disk_offset + i / SECTOR_SIZE
                         );
 
-            RtlZeroMemory(holder, SECTOR_SIZE);
             RtlCopyMemory(holder, dev->buffer + i, SECTOR_SIZE);
 
-            DbgPrint("Pass %lld", offset_in_sector);
+            CRC = update_crc(0, holder, SECTOR_SIZE);
 
-            RtlZeroMemory(CRC_BUFFER, SECTOR_SIZE);
+            // UPDATING MAIN CRC ============
             status = SendIrp(IRP_MJ_READ,
                 dev->mainPhysicalDeviceObject,
                 initialOffset,
                 CRC_BUFFER,
-                SECTOR_SIZE,
-                TRUE);
-
-            dev->CRC = update_crc(0, holder, SECTOR_SIZE);
-            memcpy(CRC_BUFFER + offset_in_sector,
-                &dev->CRC,
-                sizeof(unsigned long));
-            DbgPrint("Crc calc %lu", dev->CRC);
+                SECTOR_SIZE);
+            memcpy(CRC_BUFFER + offset_in_sector, &CRC, sizeof(CRC));
             status = SendIrp(IRP_MJ_WRITE,
-                dev->mainPhysicalDeviceObject,
-                dupOffset,
-                CRC_BUFFER,
-                SECTOR_SIZE,
-                TRUE);
-
-            //=======================
-            RtlZeroMemory(CRC_BUFFER, SECTOR_SIZE);
-             status = SendIrp(IRP_MJ_READ,
                 dev->mainPhysicalDeviceObject,
                 initialOffset,
                 CRC_BUFFER,
-                SECTOR_SIZE,
-                TRUE);
-                memcpy(&dev->CRC, CRC_BUFFER + offset_in_sector,
-                sizeof(unsigned long));
-                DbgPrint("Crc scrs %lu", dev->CRC);
-             //=======================
-            RtlZeroMemory(CRC_BUFFER, SECTOR_SIZE);
+                SECTOR_SIZE);
+            // END MAIN CRC =================
+
+            // UPDATING BACK CRC ============
+
+            status = SendIrp(IRP_MJ_READ,
+                dev->backUpPhysicalDeviceObject,
+                initialOffset,
+                CRC_BUFFER,
+                SECTOR_SIZE);
+            
+            memcpy(CRC_BUFFER + offset_in_sector, &CRC, sizeof(CRC));
+            status = SendIrp(IRP_MJ_WRITE,
+                dev->backUpPhysicalDeviceObject,
+                initialOffset,
+                CRC_BUFFER,
+                SECTOR_SIZE);
+             // END MAIN CRC =================
+
         }
     }
 
@@ -192,15 +184,13 @@ static NTSTATUS SendTestIrp ( SSR_DEVICE_DATA *dev, ULONG major )
         dev->mainPhysicalDeviceObject,
         dev->byteOffset,
         dev->buffer,
-        dev->bufferSize,
-        FALSE);
+        dev->bufferSize);
 
-    // status = SendIrp(major,
-    //     dev->backUpPhysicalDeviceObject,
-    //     dev->byteOffset,
-    //     dev->buffer,
-    //     dev->bufferSize,
-    //     FALSE);
+    status = SendIrp(major,
+        dev->backUpPhysicalDeviceObject,
+        dev->byteOffset,
+        dev->buffer,
+        dev->bufferSize);
 
 
     return status /*|| status2*/;
