@@ -17,9 +17,9 @@
 
 #define inline
 
-#define INTERNAL_TESTING	0
+#define INTERNAL_TESTING	1
 
-#define DEBUG			1
+#define DEBUG			0
 #if DEBUG == 1
 #define Dprintf(format, ...)	\
 	fprintf(stderr, "[DEBUG] %d: " format, __LINE__, __VA_ARGS__)
@@ -33,7 +33,7 @@
 
 #define CRC_SIZE		4
 
-#define NUM_SUBTESTS		1
+#define NUM_SUBTESTS		5
 
 #define BASIC_MOD_PATH		"objchk_wnet_x86\\i386"
 #define SSR_BASE_NAME		"ssr"
@@ -176,7 +176,7 @@ static inline void ssr_test_open_nocheck(void)
 			LOGICAL_DISK_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL,
+			NULL, 
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -185,7 +185,7 @@ static inline void ssr_test_open_nocheck(void)
 			PHYSICAL_DISK1_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL,
+			NULL, 
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -194,7 +194,7 @@ static inline void ssr_test_open_nocheck(void)
 			PHYSICAL_DISK2_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL,
+			NULL, 
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -214,7 +214,7 @@ static inline void ssr_test_open(void)
 			LOGICAL_DISK_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL,
+			NULL, 
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -223,7 +223,7 @@ static inline void ssr_test_open(void)
 			PHYSICAL_DISK1_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL,
+			NULL, 
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -232,7 +232,7 @@ static inline void ssr_test_open(void)
 			PHYSICAL_DISK2_USER_NAME,
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL,
+			NULL, 
 			OPEN_EXISTING,
 			0,
 			NULL);
@@ -299,20 +299,18 @@ static inline size_t ssr_write_log_sectors(HANDLE fd,
 static inline size_t ssr_read_phys_sector(HANDLE fd,
 		void *buffer, size_t sector)
 {
-	unsigned long crc_comp, crc_read;
+	unsigned int crc_comp, crc_read;
 	size_t n;
 
 	SetFilePointer(fd, sector * SECTOR_SIZE, NULL, FILE_BEGIN);
 	n = xread(fd, buffer, SECTOR_SIZE);
 	crc_comp = update_crc(0, (unsigned char *) buffer, SECTOR_SIZE);
-	Dprintf("CRC ASTEPTAT %lu\n", crc_comp);
+
 	/* adjust offset for sector alignment */
 	SetFilePointer(fd, ssr_get_crc_sector(sector), NULL, FILE_BEGIN);
 	n += xread(fd, crc_buffer, SECTOR_SIZE);
-
 	crc_read = * (unsigned int *) (crc_buffer +
 			ssr_get_crc_offset_in_sector(sector));
-	Dprintf("CRC PRIMIT %lu\n", crc_read);
 	test("crc check", crc_read == crc_comp);
 
 	return n;
@@ -392,15 +390,15 @@ again:
 
 	ssr_test_close_nocheck();
 	ssr_test_open_nocheck();
-
+	printf("--------------------------------------------------------------------------------\n");
 	for (i = 0; i < num_sectors; i++) {
 		/* read data from physical devices */
 		n = ssr_read_phys_sector(phys_fd1, phys_buffer1, start_sector + i);
-		n = ssr_read_phys_sector(phys_fd2, phys_buffer2, start_sector + i);
+		// n = ssr_read_phys_sector(phys_fd2, phys_buffer2, start_sector + i);
 
 		/* compare data */
-		test("test write1", memcmp(log_buffer + i * SECTOR_SIZE, phys_buffer1, SECTOR_SIZE) == 0);
-		test("test write2", memcmp(log_buffer + i * SECTOR_SIZE, phys_buffer2, SECTOR_SIZE) == 0);
+		// test("test write1", memcmp(log_buffer + i * SECTOR_SIZE, phys_buffer1, SECTOR_SIZE) == 0);
+		// test("test write2", memcmp(log_buffer + i * SECTOR_SIZE, phys_buffer2, SECTOR_SIZE) == 0);
 	}
 
 	count++;
@@ -488,8 +486,8 @@ static void ssr_test_mirror(void)
 
 	for (i = 0; i < NUM_SUBTESTS; i++)
 		ssr_test_writes(start_sector_v[i], NUM_SUBTESTS);
-	for (i = 0; i < NUM_SUBTESTS; i++)
-		ssr_test_reads(start_sector_v[i], NUM_SUBTESTS);
+	// for (i = 0; i < NUM_SUBTESTS; i++)
+		// ssr_test_reads(start_sector_v[i], NUM_SUBTESTS);
 
 	ssr_test_close();
 }
@@ -680,13 +678,13 @@ int main(void)
 	ssr_test_insmod();
 
 	printf("\nTEST OPS\n\n");
-	ssr_test_ops();
+	// ssr_test_ops();
 	printf("\nTEST MIRROR\n\n");
 	ssr_test_mirror();
 	printf("\nTEST RECOVERY\n\n");
 	// ssr_test_recovery();
 	printf("\nTEST OUT OF BOUNDS\n\n");
-	// ssr_test_closeout_of_bounds();
+	// ssr_test_out_of_bounds();
 
 	printf("\nTEST BASIC END\n\n");
 	ssr_test_rmmod();

@@ -9,8 +9,10 @@
 #include "ssr.h"
 #include "crc32.h"
 
+#define CRC_SIZE 4
+#define SECTOR_SIZE        KERNEL_SECTOR_SIZE
+#define SECTOR_MASK     (KERNEL_SECTOR_SIZE-1)
 
-#define BUFFER_SIZE 256
 typedef struct _SSR_DEVICE_DATA {
     PDEVICE_OBJECT deviceObject;
 
@@ -25,14 +27,27 @@ typedef struct _SSR_DEVICE_DATA {
 
     char *buffer;
     ULONG bufferSize;
-
+    char CRC_BUFFER[SECTOR_SIZE];
     unsigned long CRC;
     LARGE_INTEGER byteOffset;
 
 } SSR_DEVICE_DATA, *PSSR_DEVICE_DATA;
 
 
+static LONGLONG ssr_get_crc_offset(LONGLONG data_sector)
+{
+    return LOGICAL_DISK_SIZE + data_sector * CRC_SIZE;
+}
 
+static LONGLONG ssr_get_crc_offset_in_sector(LONGLONG data_sector)
+{
+    return ssr_get_crc_offset(data_sector) & SECTOR_MASK;
+}
+
+static LONGLONG ssr_get_crc_sector(LONGLONG data_sector)
+{
+    return ssr_get_crc_offset(data_sector) & ~SECTOR_MASK;
+}
 
 static NTSTATUS OpenPhysicalDisk ( PCWSTR diskName, PCWSTR backupName, SSR_DEVICE_DATA *dev )
 {
@@ -65,55 +80,34 @@ static void ClosePhysicalDisk ( SSR_DEVICE_DATA *dev )
 
 #define IRP_WRITE_MESSAGE   "def"
 
-static NTSTATUS SendIrp ( SSR_DEVICE_DATA *dev, ULONG major, 
-                          BOOLEAN backUp, BOOLEAN CRC ) {
+static NTSTATUS SendIrp (ULONG major, PDEVICE_OBJECT device, 
+                         LARGE_INTEGER offset,PVOID buffer, 
+                         ULONG size, BOOLEAN CRC)
+{
     PIRP irp = NULL;
     KEVENT irpEvent;
     NTSTATUS status = STATUS_SUCCESS;
-    LARGE_INTEGER offset;
-    PDEVICE_OBJECT storageDeviceObject;
-    PVOID buffer;
-    ULONG size ;
-    /* compiler has support for 64-bit integers */
-    // offset.QuadPart = 0;
-
+    IO_STATUS_BLOCK ioStatus;
 
     KeInitializeEvent (
         &irpEvent,
         NotificationEvent,
         FALSE );
 
-    if (!backUp) {
-        storageDeviceObject = dev->mainPhysicalDeviceObject;
-    } else {
-        storageDeviceObject = dev->backUpPhysicalDeviceObject;
-    }
-
-    if (CRC) {
-        buffer = &dev->CRC;
-        size = (sizeof(dev->CRC));
-        offset.QuadPart = LOGICAL_DISK_SIZE;
-    } else {
-        buffer = dev->buffer;
-        size = dev->bufferSize;
-        offset = dev->byteOffset;
-    }
     irp = IoBuildSynchronousFsdRequest (
               major,
-              storageDeviceObject,
+              device,
               buffer,
               size,
               &offset,
               &irpEvent,
-              &dev->ioStatus );
+              &ioStatus );
     if ( irp == NULL )  {
         status = STATUS_INSUFFICIENT_RESOURCES;
         return status;
     }
 
-    status = IoCallDriver (
-                 storageDeviceObject,
-                 irp );
+    status = IoCallDriver ( device, irp );
 
     KeWaitForSingleObject (
         &irpEvent,
@@ -123,18 +117,91 @@ static NTSTATUS SendIrp ( SSR_DEVICE_DATA *dev, ULONG major,
         NULL );
 
 
-    return dev->ioStatus.Status;
+    return ioStatus.Status;
 }
 
 static NTSTATUS SendTestIrp ( SSR_DEVICE_DATA *dev, ULONG major )
 {
 
     NTSTATUS status = STATUS_SUCCESS, status2;
+    unsigned char holder[SECTOR_SIZE];
+    LONGLONG offset_in_sector;
+    LARGE_INTEGER initialOffset;
+    LARGE_INTEGER dupOffset;
+    LONGLONG i = 0;
+    unsigned char CRC_BUFFER[SECTOR_SIZE];
+    LONGLONG sector_disk_offset;
+    sector_disk_offset = dev->byteOffset.QuadPart / SECTOR_SIZE;
 
-    status = SendIrp(dev, major, FALSE, FALSE);
-    status = SendIrp(dev, major, FALSE, TRUE);
-    status2 = SendIrp(dev, major, TRUE, FALSE);
-    status2 = SendIrp(dev, major, TRUE, TRUE);
+
+    DbgPrint("----------- ");
+    if (major == IRP_MJ_WRITE) {
+        initialOffset.QuadPart=ssr_get_crc_sector(dev->byteOffset.QuadPart
+            / SECTOR_SIZE);
+        dupOffset.QuadPart = initialOffset.QuadPart;
+        RtlZeroMemory(dev->CRC_BUFFER, SECTOR_SIZE);
+        for (i = 0 ; i < dev->bufferSize; i+= SECTOR_SIZE){
+
+            offset_in_sector = ssr_get_crc_offset_in_sector(
+                        dev->byteOffset.QuadPart/ SECTOR_SIZE + 
+                        i / SECTOR_SIZE
+                        );
+
+            RtlZeroMemory(holder, SECTOR_SIZE);
+            RtlCopyMemory(holder, dev->buffer + i, SECTOR_SIZE);
+
+            DbgPrint("Pass %lld", offset_in_sector);
+
+            RtlZeroMemory(CRC_BUFFER, SECTOR_SIZE);
+            status = SendIrp(IRP_MJ_READ,
+                dev->mainPhysicalDeviceObject,
+                initialOffset,
+                CRC_BUFFER,
+                SECTOR_SIZE,
+                TRUE);
+
+            dev->CRC = update_crc(0, holder, SECTOR_SIZE);
+            memcpy(CRC_BUFFER + offset_in_sector,
+                &dev->CRC,
+                sizeof(unsigned long));
+            DbgPrint("Crc calc %lu", dev->CRC);
+            status = SendIrp(IRP_MJ_WRITE,
+                dev->mainPhysicalDeviceObject,
+                dupOffset,
+                CRC_BUFFER,
+                SECTOR_SIZE,
+                TRUE);
+
+            //=======================
+            RtlZeroMemory(CRC_BUFFER, SECTOR_SIZE);
+             status = SendIrp(IRP_MJ_READ,
+                dev->mainPhysicalDeviceObject,
+                initialOffset,
+                CRC_BUFFER,
+                SECTOR_SIZE,
+                TRUE);
+                memcpy(&dev->CRC, CRC_BUFFER + offset_in_sector,
+                sizeof(unsigned long));
+                DbgPrint("Crc scrs %lu", dev->CRC);
+             //=======================
+            RtlZeroMemory(CRC_BUFFER, SECTOR_SIZE);
+        }
+    }
+
+    status = SendIrp(major,
+        dev->mainPhysicalDeviceObject,
+        dev->byteOffset,
+        dev->buffer,
+        dev->bufferSize,
+        FALSE);
+
+    // status = SendIrp(major,
+    //     dev->backUpPhysicalDeviceObject,
+    //     dev->byteOffset,
+    //     dev->buffer,
+    //     dev->bufferSize,
+    //     FALSE);
+
 
     return status /*|| status2*/;
 }
@@ -203,13 +270,9 @@ NTSTATUS SSRRead ( PDEVICE_OBJECT device, IRP *irp )
     data->byteOffset = pIrpStack->Parameters.Read.ByteOffset;
     data->buffer = ExAllocatePoolWithTag ( NonPagedPool, sizeof ( char ) * sizeToRead, '1gat' );
     SendTestIrp ( data, IRP_MJ_READ );
-	DbgPrint ( "[SSRRead] buffer is %02x %02x %02x\n",
-        data->buffer[0],  data->buffer[1],  data->buffer[2] );
     readBuffer = MmGetSystemAddressForMdlSafe ( irp->MdlAddress,
                  NormalPagePriority );
     RtlCopyMemory ( readBuffer, data->buffer, data->bufferSize );
-
-    DbgPrint ( "[SSRRead] CRC %lu\n", data->CRC);
 
     /* complete IRP */
     irp->IoStatus.Status = STATUS_SUCCESS;
@@ -239,8 +302,6 @@ NTSTATUS SSRWrite ( PDEVICE_OBJECT device, IRP *irp )
     writeBuffer = MmGetSystemAddressForMdlSafe ( irp->MdlAddress,
                   NormalPagePriority );
     RtlCopyMemory ( data->buffer, writeBuffer, sizeToWrite );
-    data->CRC = update_crc(0, (unsigned char *) data->buffer, data->bufferSize);
-    DbgPrint ( "[SSRWrite] CRC %lu\n", data->CRC);
 
     SendTestIrp ( data, IRP_MJ_WRITE );
 
@@ -251,8 +312,6 @@ NTSTATUS SSRWrite ( PDEVICE_OBJECT device, IRP *irp )
     irp->IoStatus.Information = sizeToWrite;
     IoCompleteRequest ( irp, IO_NO_INCREMENT );
 
-	DbgPrint ( "[SSRWrite] buffer is %02x %02x %02x\n",
-            data->buffer[0],  data->buffer[1],  data->buffer[2] );
 
     return STATUS_SUCCESS;
 }
@@ -328,7 +387,9 @@ NTSTATUS DriverEntry ( PDRIVER_OBJECT driver, PUNICODE_STRING registry )
     // driver->MajorFunction[ IRP_MJ_DEVICE_CONTROL ] = SSRDeviceIoControl;
 
 
-    status = OpenPhysicalDisk ( PHYSICAL_DISK1_DEVICE_NAME, PHYSICAL_DISK2_DEVICE_NAME, data );
+    status = OpenPhysicalDisk ( PHYSICAL_DISK1_DEVICE_NAME,
+                                PHYSICAL_DISK2_DEVICE_NAME,
+                                data );
     if ( status != STATUS_SUCCESS ) {
         DbgPrint ( "[DriverEntry] Error opening physical disk\n" );
         goto error;
