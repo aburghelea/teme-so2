@@ -12,6 +12,7 @@
 #define CRC_SIZE 4
 #define SECTOR_SIZE        KERNEL_SECTOR_SIZE
 #define SECTOR_MASK     (KERNEL_SECTOR_SIZE-1)
+#define MTAG 'trss'
 
 typedef struct _SSR_DEVICE_DATA {
     PDEVICE_OBJECT deviceObject;
@@ -21,9 +22,6 @@ typedef struct _SSR_DEVICE_DATA {
 
     PFILE_OBJECT mainFileObject;
     PFILE_OBJECT backUpFileObject;
-
-    // ULONG bufferSize;
-    LARGE_INTEGER byteOffset;
 
 } SSR_DEVICE_DATA, *PSSR_DEVICE_DATA;
 
@@ -128,7 +126,8 @@ static NTSTATUS SendIrp (ULONG major, PDEVICE_OBJECT device,
 }
 
 
-static NTSTATUS DelegateIrp ( SSR_DEVICE_DATA *data, ULONG major, PCHAR contentBuffer, ULONG contentSize )
+static NTSTATUS DelegateIrp ( SSR_DEVICE_DATA *data, ULONG major, PCHAR contentBuffer, 
+    ULONG contentSize, LARGE_INTEGER contentOffset )
 {
 
     NTSTATUS status = STATUS_SUCCESS;
@@ -142,7 +141,7 @@ static NTSTATUS DelegateIrp ( SSR_DEVICE_DATA *data, ULONG major, PCHAR contentB
 
     unsigned int CRC,CRC_2, CRC_CALC;
     LONGLONG sector_disk_offset;
-    sector_disk_offset = data->byteOffset.QuadPart / SECTOR_SIZE;
+    sector_disk_offset = contentOffset.QuadPart / SECTOR_SIZE;
 
 
     if (major == IRP_MJ_WRITE) {
@@ -169,7 +168,7 @@ static NTSTATUS DelegateIrp ( SSR_DEVICE_DATA *data, ULONG major, PCHAR contentB
 
     status = SendIrp(major,
         data->mainPhysicalDeviceObject,
-        data->byteOffset,
+        contentOffset,
         contentBuffer,
         contentSize);
     if (major == IRP_MJ_READ) {
@@ -185,7 +184,7 @@ static NTSTATUS DelegateIrp ( SSR_DEVICE_DATA *data, ULONG major, PCHAR contentB
             // Update main crc============
             GET_CRC_SECTOR(data->mainPhysicalDeviceObject, initialOffset);
             memcpy(&CRC, CRC_BUFFER + offset_in_sector, sizeof(CRC));
-            anotherOffset.QuadPart = data->byteOffset.QuadPart + i;
+            anotherOffset.QuadPart = contentOffset.QuadPart + i;
             if (CRC != CRC_CALC){
 
                 status = SendIrp(major,
@@ -234,7 +233,7 @@ static NTSTATUS DelegateIrp ( SSR_DEVICE_DATA *data, ULONG major, PCHAR contentB
     }
     status = SendIrp(major,
         data->backUpPhysicalDeviceObject,
-        data->byteOffset,
+        contentOffset,
         contentBuffer,
         contentSize);
 
@@ -248,24 +247,25 @@ NTSTATUS SSRRead ( PDEVICE_OBJECT device, IRP *irp )
         ( SSR_DEVICE_DATA * ) device->DeviceExtension;
     PIO_STACK_LOCATION pIrpStack;
     PCHAR readBuffer, contentBuffer;
+    LARGE_INTEGER contentOffset;
     ULONG sizeToRead;
 
     /* retrieve buffer size from current stack location */
     pIrpStack = IoGetCurrentIrpStackLocation ( irp );
     sizeToRead = pIrpStack->Parameters.Read.Length;
 
-    data->byteOffset = pIrpStack->Parameters.Read.ByteOffset;
-    if (data->byteOffset.QuadPart + sizeToRead > LOGICAL_DISK_SIZE) {
+    contentOffset = pIrpStack->Parameters.Read.ByteOffset;
+    if (contentOffset.QuadPart + sizeToRead > LOGICAL_DISK_SIZE) {
         sizeToRead = 0;
         goto exit;
     }
-    contentBuffer = ExAllocatePoolWithTag ( NonPagedPool, sizeToRead, '1gat' );
+    contentBuffer = ExAllocatePoolWithTag ( NonPagedPool, sizeToRead, MTAG );
 
-    DelegateIrp ( data, IRP_MJ_READ, contentBuffer, sizeToRead );
+    DelegateIrp ( data, IRP_MJ_READ, contentBuffer, sizeToRead, contentOffset);
     readBuffer = MmGetSystemAddressForMdlSafe ( irp->MdlAddress,
                  NormalPagePriority );
     RtlCopyMemory ( readBuffer, contentBuffer, sizeToRead);
-    ExFreePoolWithTag ( contentBuffer, '1gat' );
+    ExFreePoolWithTag ( contentBuffer, MTAG );
     /* complete IRP */
  exit:
     irp->IoStatus.Status = STATUS_SUCCESS;
@@ -283,12 +283,13 @@ NTSTATUS SSRWrite ( PDEVICE_OBJECT device, IRP *irp )
     PIO_STACK_LOCATION pIrpStack;
     PCHAR writeBuffer, contentBuffer;
     ULONG sizeToWrite;
+    LARGE_INTEGER contentOffset;
     pIrpStack = IoGetCurrentIrpStackLocation ( irp );
     sizeToWrite = pIrpStack->Parameters.Write.Length;
 
-    data->byteOffset = pIrpStack->Parameters.Write.ByteOffset;
-    contentBuffer = ExAllocatePoolWithTag ( NonPagedPool, sizeToWrite, '1gat' );
-    if (data->byteOffset.QuadPart + sizeToWrite > LOGICAL_DISK_SIZE) {
+    contentOffset = pIrpStack->Parameters.Write.ByteOffset;
+    contentBuffer = ExAllocatePoolWithTag ( NonPagedPool, sizeToWrite, MTAG );
+    if (contentOffset.QuadPart + sizeToWrite > LOGICAL_DISK_SIZE) {
         sizeToWrite = 0;
         goto exit;
     }
@@ -296,9 +297,9 @@ NTSTATUS SSRWrite ( PDEVICE_OBJECT device, IRP *irp )
                   NormalPagePriority );
     RtlCopyMemory (contentBuffer, writeBuffer, sizeToWrite );
 
-    DelegateIrp ( data, IRP_MJ_WRITE, contentBuffer,sizeToWrite );
+    DelegateIrp ( data, IRP_MJ_WRITE, contentBuffer,sizeToWrite, contentOffset);
 
-    ExFreePoolWithTag ( contentBuffer, '1gat' );
+    ExFreePoolWithTag ( contentBuffer, MTAG );
     /* complete IRP */
 
 exit:    
@@ -386,6 +387,7 @@ NTSTATUS DriverEntry ( PDRIVER_OBJECT driver, PUNICODE_STRING registry )
 
     DbgPrint ( "[DriverEntry] Loaded successfully" );
     return STATUS_SUCCESS;
+
 error:
     DbgPrint ( "[DriverEntry] Force kill" );
 
