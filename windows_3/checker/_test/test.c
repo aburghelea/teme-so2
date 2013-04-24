@@ -686,7 +686,7 @@ int main(void)
 	printf("\nTEST RECOVERY\n\n");
 	ssr_test_recovery();
 	printf("\nTEST OUT OF BOUNDS\n\n");
-	// ssr_test_out_of_bounds();
+	ssr_test_out_of_bounds();
 
 	printf("\nTEST BASIC END\n\n");
 	ssr_test_rmmod();
