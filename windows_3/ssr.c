@@ -133,11 +133,11 @@ static NTSTATUS SendTestIrp ( SSR_DEVICE_DATA *dev, ULONG major )
     unsigned char CRC_BUFFER[SECTOR_SIZE];
 
     LONGLONG offset_in_sector;
-    LARGE_INTEGER initialOffset;
+    LARGE_INTEGER initialOffset, anotherOffset;
 
     LONGLONG i = 0;
 
-    unsigned int CRC, CRC_CALC;
+    unsigned int CRC,CRC_2, CRC_CALC;
     LONGLONG sector_disk_offset;
     sector_disk_offset = dev->byteOffset.QuadPart / SECTOR_SIZE;
 
@@ -182,39 +182,50 @@ static NTSTATUS SendTestIrp ( SSR_DEVICE_DATA *dev, ULONG major )
             // Update main crc============
             GET_CRC_SECTOR(dev->mainPhysicalDeviceObject, initialOffset);
             memcpy(&CRC, CRC_BUFFER + offset_in_sector, sizeof(CRC));
+            anotherOffset.QuadPart = dev->byteOffset.QuadPart + i;
             if (CRC != CRC_CALC){
-                DbgPrint("Crc master gresit");
+
                 status = SendIrp(major,
                                 dev->backUpPhysicalDeviceObject,
-                                dev->byteOffset,
+                                anotherOffset,
                                 data_buffer,
                                 SECTOR_SIZE);
-                DbgPrint("De disc 1 %lu \n", CRC_CALC);
                 CRC_CALC = update_crc(0, data_buffer, SECTOR_SIZE);
-                DbgPrint("Pe disc 1 %lu \n", CRC);
                 GET_CRC_SECTOR(dev->backUpPhysicalDeviceObject, initialOffset);
-                DbgPrint("Pe disc 2 %lu \n", CRC);
                 RtlCopyMemory( dev->buffer + i, data_buffer,SECTOR_SIZE);
-                // RtlCopyMemory(data_buffer, dev->buffer + i, SECTOR_SIZE);
-
-                DbgPrint("De disc 2 %lu \n", CRC_CALC);
-                if (CRC != CRC_CALC){
-                    DbgPrint("Tot gresit gresit %lu", CRC_CALC);
+                if (CRC_CALC != CRC) {
+                    DbgPrint("Gresit pe ambele discuri");
+                    return STATUS_DEVICE_DATA_ERROR;
                 }
                 status = SendIrp(IRP_MJ_WRITE,
                                 dev->mainPhysicalDeviceObject,
-                                dev->byteOffset,
+                                anotherOffset,
                                 data_buffer,
                                 SECTOR_SIZE);
                 memcpy(CRC_BUFFER + offset_in_sector, &CRC, sizeof(CRC));
                 SET_CRC_SECTOR(dev->mainPhysicalDeviceObject, initialOffset);
-            }
-            // SET_CRC_SECTOR(dev->mainPhysicalDeviceObject, initialOffset);
+            } else {
+                status = SendIrp(IRP_MJ_READ,
+                                dev->backUpPhysicalDeviceObject,
+                                anotherOffset,
+                                data_buffer,
+                                SECTOR_SIZE);
+                CRC_CALC = update_crc(0, data_buffer, SECTOR_SIZE);
+                GET_CRC_SECTOR(dev->backUpPhysicalDeviceObject, initialOffset);
+                memcpy(&CRC_2, CRC_BUFFER + offset_in_sector, sizeof(CRC));
+                if (CRC_CALC != CRC_2) {
+                    RtlCopyMemory(data_buffer, dev->buffer + i, SECTOR_SIZE);
+                    status = SendIrp(IRP_MJ_WRITE,
+                            dev->backUpPhysicalDeviceObject,
+                            anotherOffset,
+                            data_buffer,
+                            SECTOR_SIZE);
+                    memcpy(CRC_BUFFER + offset_in_sector,&CRC_2, sizeof(CRC));
+                    GET_CRC_SECTOR(dev->backUpPhysicalDeviceObject, initialOffset);
+                    DbgPrint("Sclav corupt");
 
-            // // Update backup CRC
-            // GET_CRC_SECTOR(dev->backUpPhysicalDeviceObject, initialOffset);
-            // memcpy(CRC_BUFFER + offset_in_sector, &CRC, sizeof(CRC));
-            // SET_CRC_SECTOR(dev->backUpPhysicalDeviceObject, initialOffset);
+                }
+            }
         }
         return status;
     }
