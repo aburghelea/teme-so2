@@ -125,12 +125,10 @@ static NTSTATUS SendIrp (ULONG major, PDEVICE_OBJECT device,
     return ioStatus.Status;
 }
 
-
-static NTSTATUS DelegateIrp ( SSR_DEVICE_DATA *data, ULONG major, PCHAR contentBuffer, 
-    ULONG contentSize, LARGE_INTEGER contentOffset )
+static NTSTATUS DelegateWriteIrp(SSR_DEVICE_DATA *data, PCHAR contentBuffer, 
+    ULONG contentSize, LARGE_INTEGER contentOffset) 
 {
-
-    NTSTATUS status = STATUS_SUCCESS;
+     NTSTATUS status = STATUS_SUCCESS;
     unsigned char data_buffer[SECTOR_SIZE];
     unsigned char CRC_BUFFER[SECTOR_SIZE];
 
@@ -143,8 +141,6 @@ static NTSTATUS DelegateIrp ( SSR_DEVICE_DATA *data, ULONG major, PCHAR contentB
     LONGLONG sector_disk_offset;
     sector_disk_offset = contentOffset.QuadPart / SECTOR_SIZE;
 
-
-    if (major == IRP_MJ_WRITE) {
         for (i = 0 ; i < contentSize; i+= SECTOR_SIZE){
             initialOffset.QuadPart=ssr_get_crc_sector(sector_disk_offset + i / SECTOR_SIZE);
             offset_in_sector = ssr_get_crc_offset_in_sector(
@@ -164,81 +160,103 @@ static NTSTATUS DelegateIrp ( SSR_DEVICE_DATA *data, ULONG major, PCHAR contentB
             memcpy(CRC_BUFFER + offset_in_sector, &CRC, sizeof(CRC));
             SET_CRC_SECTOR(data->backUpPhysicalDeviceObject, initialOffset);
         }
-    }
-
-    status = SendIrp(major,
+    status = SendIrp(IRP_MJ_WRITE,
         data->mainPhysicalDeviceObject,
         contentOffset,
         contentBuffer,
         contentSize);
-    if (major == IRP_MJ_READ) {
-        for (i = 0 ; i < contentSize; i+= SECTOR_SIZE){
-            initialOffset.QuadPart=ssr_get_crc_sector(sector_disk_offset + i / SECTOR_SIZE);
-            offset_in_sector = ssr_get_crc_offset_in_sector(
-                        sector_disk_offset + i / SECTOR_SIZE
-                        );
 
-            RtlCopyMemory(data_buffer, contentBuffer + i, SECTOR_SIZE);
-            CRC_CALC = update_crc(0, data_buffer, SECTOR_SIZE);
-
-            // Update main crc============
-            GET_CRC_SECTOR(data->mainPhysicalDeviceObject, initialOffset);
-            memcpy(&CRC, CRC_BUFFER + offset_in_sector, sizeof(CRC));
-            anotherOffset.QuadPart = contentOffset.QuadPart + i;
-            if (CRC != CRC_CALC){
-
-                status = SendIrp(major,
-                                data->backUpPhysicalDeviceObject,
-                                anotherOffset,
-                                data_buffer,
-                                SECTOR_SIZE);
-                CRC_CALC = update_crc(0, data_buffer, SECTOR_SIZE);
-                GET_CRC_SECTOR(data->backUpPhysicalDeviceObject, initialOffset);
-                RtlCopyMemory( contentBuffer + i, data_buffer,SECTOR_SIZE);
-                if (CRC_CALC != CRC) {
-                    DbgPrint("Gresit pe ambele discuri");
-                    return STATUS_DEVICE_DATA_ERROR;
-                }
-                status = SendIrp(IRP_MJ_WRITE,
-                                data->mainPhysicalDeviceObject,
-                                anotherOffset,
-                                data_buffer,
-                                SECTOR_SIZE);
-                memcpy(CRC_BUFFER + offset_in_sector, &CRC, sizeof(CRC));
-                SET_CRC_SECTOR(data->mainPhysicalDeviceObject, initialOffset);
-            } else {
-                status = SendIrp(IRP_MJ_READ,
-                                data->backUpPhysicalDeviceObject,
-                                anotherOffset,
-                                data_buffer,
-                                SECTOR_SIZE);
-                CRC_CALC = update_crc(0, data_buffer, SECTOR_SIZE);
-                GET_CRC_SECTOR(data->backUpPhysicalDeviceObject, initialOffset);
-                memcpy(&CRC_2, CRC_BUFFER + offset_in_sector, sizeof(CRC));
-                if (CRC_CALC != CRC_2) {
-                    RtlCopyMemory(data_buffer, contentBuffer + i, SECTOR_SIZE);
-                    status = SendIrp(IRP_MJ_WRITE,
-                            data->backUpPhysicalDeviceObject,
-                            anotherOffset,
-                            data_buffer,
-                            SECTOR_SIZE);
-                    memcpy(CRC_BUFFER + offset_in_sector,&CRC_2, sizeof(CRC));
-                    GET_CRC_SECTOR(data->backUpPhysicalDeviceObject, initialOffset);
-                    DbgPrint("Sclav corupt");
-
-                }
-            }
-        }
-        return status;
-    }
-    status = SendIrp(major,
+    status = SendIrp(IRP_MJ_WRITE,
         data->backUpPhysicalDeviceObject,
         contentOffset,
         contentBuffer,
         contentSize);
 
+    return status;
+}
 
-    return status ;
+static NTSTATUS DelegateReadIrp ( SSR_DEVICE_DATA *data, PCHAR contentBuffer, 
+    ULONG contentSize, LARGE_INTEGER contentOffset )
+{
+        NTSTATUS status = STATUS_SUCCESS;
+    unsigned char data_buffer[SECTOR_SIZE];
+    unsigned char CRC_BUFFER[SECTOR_SIZE];
+
+    LONGLONG offset_in_sector;
+    LARGE_INTEGER initialOffset, anotherOffset;
+
+    LONGLONG i = 0;
+
+    unsigned int CRC,CRC_2, CRC_CALC;
+    LONGLONG sector_disk_offset;
+    sector_disk_offset = contentOffset.QuadPart / SECTOR_SIZE;
+
+
+   
+    status = SendIrp(IRP_MJ_READ,
+        data->mainPhysicalDeviceObject,
+        contentOffset,
+        contentBuffer,
+        contentSize);
+    for (i = 0 ; i < contentSize; i+= SECTOR_SIZE){
+        initialOffset.QuadPart=ssr_get_crc_sector(sector_disk_offset + i / SECTOR_SIZE);
+        offset_in_sector = ssr_get_crc_offset_in_sector(
+                    sector_disk_offset + i / SECTOR_SIZE
+                    );
+
+        RtlCopyMemory(data_buffer, contentBuffer + i, SECTOR_SIZE);
+        CRC_CALC = update_crc(0, data_buffer, SECTOR_SIZE);
+
+        // Update main crc============
+        GET_CRC_SECTOR(data->mainPhysicalDeviceObject, initialOffset);
+        memcpy(&CRC, CRC_BUFFER + offset_in_sector, sizeof(CRC));
+        anotherOffset.QuadPart = contentOffset.QuadPart + i;
+        if (CRC != CRC_CALC){
+
+            status = SendIrp(IRP_MJ_READ,
+                            data->backUpPhysicalDeviceObject,
+                            anotherOffset,
+                            data_buffer,
+                            SECTOR_SIZE);
+            CRC_CALC = update_crc(0, data_buffer, SECTOR_SIZE);
+            GET_CRC_SECTOR(data->backUpPhysicalDeviceObject, initialOffset);
+            RtlCopyMemory( contentBuffer + i, data_buffer,SECTOR_SIZE);
+            if (CRC_CALC != CRC) {
+                DbgPrint("Gresit pe ambele discuri");
+                return STATUS_DEVICE_DATA_ERROR;
+            }
+            status = SendIrp(IRP_MJ_WRITE,
+                            data->mainPhysicalDeviceObject,
+                            anotherOffset,
+                            data_buffer,
+                            SECTOR_SIZE);
+            memcpy(CRC_BUFFER + offset_in_sector, &CRC, sizeof(CRC));
+            SET_CRC_SECTOR(data->mainPhysicalDeviceObject, initialOffset);
+        } else {
+            status = SendIrp(IRP_MJ_READ,
+                            data->backUpPhysicalDeviceObject,
+                            anotherOffset,
+                            data_buffer,
+                            SECTOR_SIZE);
+            CRC_CALC = update_crc(0, data_buffer, SECTOR_SIZE);
+            GET_CRC_SECTOR(data->backUpPhysicalDeviceObject, initialOffset);
+            memcpy(&CRC_2, CRC_BUFFER + offset_in_sector, sizeof(CRC));
+            if (CRC_CALC != CRC_2) {
+                RtlCopyMemory(data_buffer, contentBuffer + i, SECTOR_SIZE);
+                status = SendIrp(IRP_MJ_WRITE,
+                        data->backUpPhysicalDeviceObject,
+                        anotherOffset,
+                        data_buffer,
+                        SECTOR_SIZE);
+                memcpy(CRC_BUFFER + offset_in_sector,&CRC_2, sizeof(CRC));
+                GET_CRC_SECTOR(data->backUpPhysicalDeviceObject, initialOffset);
+                DbgPrint("Sclav corupt");
+
+            }
+        }
+    }
+    
+    return status;
 }
 
 NTSTATUS SSRRead ( PDEVICE_OBJECT device, IRP *irp )
@@ -261,7 +279,7 @@ NTSTATUS SSRRead ( PDEVICE_OBJECT device, IRP *irp )
     }
     contentBuffer = ExAllocatePoolWithTag ( NonPagedPool, sizeToRead, MTAG );
 
-    DelegateIrp ( data, IRP_MJ_READ, contentBuffer, sizeToRead, contentOffset);
+    DelegateReadIrp ( data, contentBuffer, sizeToRead, contentOffset);
     readBuffer = MmGetSystemAddressForMdlSafe ( irp->MdlAddress,
                  NormalPagePriority );
     RtlCopyMemory ( readBuffer, contentBuffer, sizeToRead);
@@ -297,7 +315,7 @@ NTSTATUS SSRWrite ( PDEVICE_OBJECT device, IRP *irp )
                   NormalPagePriority );
     RtlCopyMemory (contentBuffer, writeBuffer, sizeToWrite );
 
-    DelegateIrp ( data, IRP_MJ_WRITE, contentBuffer,sizeToWrite, contentOffset);
+    DelegateWriteIrp ( data, contentBuffer,sizeToWrite, contentOffset);
 
     ExFreePoolWithTag ( contentBuffer, MTAG );
     /* complete IRP */
