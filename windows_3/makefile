@@ -12,3 +12,7 @@ kbuild:
 clean:
 	-rd /s /q objchk_wnet_x86
 	-del /s /q buildchk_wnet_x86.log buildchk_wnet_x86.err
+	-del *.zip
+
+zip:
+	zip so2_3_ab *.c *.h makefile sources README

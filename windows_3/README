@@ -1,4 +1,40 @@
-Tema vietii mele (m-au batut destul de mult calculele).
+[SO2] TEMA 3 - Linux
+Burghelea Alexandru George
+342C5
+Aprilie 2013
 
-Lab 5 & 8 merge practic.
-Will refactor.
+Tema foloseste 3 obiecte DeviceObject 2 pentru discuri fizice si 1 pentru
+dispozitivul RAID in sine. Accesul la fiecare din in parte se face prin
+intermediul functiei SendIrp (e identica cu SendTestIrp din lab 08),
+care stocheza intr-un buffer datele (daca e operatie de read) sau citeste
+din acelasi buffer (daca e operatie de write).
+
+Accesul la disc l-am implementat block cu block.
+Daca e operatie de WRITE se executa pasii:
+	- calculul offsetului pe disc al sectorului ce va contine CRC-ul
+	- calcului offsetului in sector pentru CRC
+	- se citeste de pe disc sectorul aferent
+	- se actualizeaza in sector CRC-ul
+	- se scrie pe ambele discuri sectorul ce contine CRC-ul
+
+Pentru operatia de READ se executa urmatorii pasi:
+	- se extrage un block de date
+	- se extrace blocul ce contine CRC-ul pe disc
+	- se calculeaza CRC-ul pe blocul de date citit.
+	- se compara cele doua CRC-ul:
+		* daca sunt diferite:
+			- se citeste blocul de date de pe al doilea disk
+			- se extrage CRC-ul
+			- se calculeaza CRC-ul pentru blocul extra:
+				* daca sunt egale:
+					- se actualizaza blocul de date de pe master.
+					- se actualizaza CRC-ul pe master
+					- se returneaza datele din blockul de backup
+				* daca nu sunt egale:
+					- se intoarce eroare
+		* daca sunt egale :
+			- se verifica daca datele sunt consitente pe al doilea block
+			  si se actualizaza la nevoie (similar cu pasii de mai sus)
+
+Am notat cu master discul 1 si backup diskul 2 (desi nu e o relatie de tip
+master - slave/backup intre ele)
